@@ -6,6 +6,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -39,7 +41,6 @@ import com.hereliesaz.graffitixr.common.model.Layer
 import com.hereliesaz.graffitixr.common.model.ShapeKind
 import com.hereliesaz.graffitixr.common.model.Tool
 import com.hereliesaz.graffitixr.common.model.VectorShape
-import com.hereliesaz.graffitixr.design.detectSmartOverlayGestures
 import com.hereliesaz.graffitixr.design.theme.rememberAppStrings
 
 /**
@@ -179,18 +180,48 @@ fun EditorScreen(
                             }
                         )
                     }
-                    .pointerInput(uiState.activeLayerId, activeLayerLocked) {
-                        if (activeLayer != null && !activeLayerLocked) {
-                            detectSmartOverlayGestures(
-                                getValidBounds = {
-                                    Rect(0f, 0f, size.width.toFloat(), size.height.toFloat())
-                                },
-                                onGestureStart = { vm.onGestureStart() },
-                                onGestureEnd = { vm.onGestureEnd() },
-                                onGesture = { _, pan, zoom, rotation ->
-                                    vm.onTransformGesture(pan, zoom, rotation)
+                    .pointerInput(
+                        uiState.activeLayerId, activeLayerLocked,
+                        uiState.viewportOffset, uiState.viewportZoom,
+                    ) {
+                        // Infinite-canvas navigation vs. object move:
+                        //  • two+ fingers  → pan + zoom the CAMERA (about the pinch centroid)
+                        //  • one finger on the active layer → move that layer (history-bracketed)
+                        //  • one finger on empty space      → pan the CAMERA
+                        // Handle drags are claimed by the SelectionHandles layer above (consumed),
+                        // so they never reach here.
+                        awaitEachGesture {
+                            val w = size.width.toFloat()
+                            val h = size.height.toFloat()
+                            val down = awaitFirstDown(requireUnconsumed = true)
+                            val startOnActiveLayer = activeLayer != null && !activeLayerLocked &&
+                                CanvasHitTest.topHit(
+                                    uiState.layers, down.position, w, h,
+                                    uiState.viewportOffset, uiState.viewportZoom,
+                                ) == uiState.activeLayerId
+                            var movingObject = false
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pressed = event.changes.count { it.pressed }
+                                if (pressed == 0) break
+                                val pan = event.calculatePan()
+                                val zoom = event.calculateZoom()
+                                val centroid = event.calculateCentroid()
+                                when {
+                                    pressed >= 2 -> {
+                                        if (centroid != Offset.Unspecified) vm.onViewportPanZoom(pan, zoom, centroid)
+                                    }
+                                    startOnActiveLayer -> {
+                                        if (!movingObject) { vm.onGestureStart(); movingObject = true }
+                                        vm.onTransformGesture(pan, 1f, 0f)
+                                    }
+                                    else -> {
+                                        if (centroid != Offset.Unspecified) vm.onViewportPanZoom(pan, 1f, centroid)
+                                    }
                                 }
-                            )
+                                event.changes.forEach { it.consume() }
+                            }
+                            if (movingObject) vm.onGestureEnd()
                         }
                     }
             )

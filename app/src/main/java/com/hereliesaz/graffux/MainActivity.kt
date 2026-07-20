@@ -549,6 +549,12 @@ private fun AzNavHostScope.ConfigureRailItems(
     azRailSubItem(id = "proj.background", hostId = "host.project", text = "Background", color = navItemColor, shape = AzButtonShape.NONE) {
         onBackground()
     }
+    // Recentre the infinite-canvas camera back to 100% (only offered when it's off identity).
+    if (uiState.viewportZoom != 1f || uiState.viewportOffset != androidx.compose.ui.geometry.Offset.Zero) {
+        azRailSubItem(id = "proj.resetview", hostId = "host.project", text = "Reset View", color = Cyan, shape = AzButtonShape.NONE) {
+            vm.resetViewport()
+        }
+    }
     azRailSubItem(id = "proj.save", hostId = "host.project", text = navStrings.save, color = navItemColor, shape = AzButtonShape.NONE) {
         vm.saveProject()
     }
