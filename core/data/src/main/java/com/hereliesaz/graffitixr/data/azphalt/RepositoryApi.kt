@@ -2,21 +2,27 @@ package com.hereliesaz.graffitixr.data.azphalt
 
 import com.hereliesaz.graffitixr.common.azphalt.AzphaltJson
 import com.hereliesaz.graffitixr.common.azphalt.ExtensionKind
+import com.hereliesaz.graffitixr.common.azphalt.Preview
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import java.net.URLEncoder
 
 /**
  * Client + models for an azphalt registry (spec/repository-api.md, format 0.1). A registry lets
  * GraffitiXR browse and download extensions from a live server instead of the bundled seed catalog.
  *
- * Transport-agnostic on purpose: [httpGet] performs the actual fetch, so this is trivially unit-
- * testable and reuses whatever HTTP stack the caller already has (GraffitiXR has no Retrofit; the
- * caller can pass a tiny HttpURLConnection lambda). [httpGet] receives the URL and the request
- * headers (e.g. an Authorization bearer for paid packages) and returns the response body.
+ * Transport-agnostic on purpose: [httpGet]/[httpPost] perform the actual I/O, so this is trivially
+ * unit-testable and reuses whatever HTTP stack the caller already has (GraffitiXR has no Retrofit; the
+ * caller can pass a tiny HttpURLConnection lambda). Each receives the URL and the request headers (e.g.
+ * an Authorization bearer for paid packages) and returns the response body; [httpPost] also gets the
+ * request body. [httpPost] defaults to a stub that throws — only [checkUpdates] needs it, so a browse-
+ * /install-only caller can keep passing just a GET lambda.
  */
 class RepositoryClient(
     baseUrl: String,
     private val httpGet: (url: String, headers: Map<String, String>) -> String,
+    private val httpPost: (url: String, body: String, headers: Map<String, String>) -> String =
+        { url, _, _ -> throw UnsupportedOperationException("No POST transport configured for $url") },
 ) {
     private val base: String = baseUrl.trimEnd('/')
 
@@ -55,15 +61,95 @@ class RepositoryClient(
     fun downloadUrl(id: String, version: String): String =
         "$base/packages/${enc(id)}/versions/${enc(version)}/download"
 
+    /**
+     * GET /revocations — the registry's revocation feed (spec/repository-api.md § Revocations). Lists
+     * package versions the registry has pulled (malware, license violation, …). A host consults this
+     * to warn on or disable an installed extension whose version has since been revoked.
+     */
+    fun revocations(): RevocationsFeed =
+        AzphaltJson.decodeFromString(httpGet("$base/revocations", emptyMap()))
+
+    /**
+     * POST /updates — batch update check (spec/repository-api.md § Updates). Sends the ids+versions the
+     * host has installed; the registry answers only those with a newer release. Requires a POST
+     * transport (see [httpPost]).
+     */
+    fun checkUpdates(installed: List<UpdateQuery>): UpdatesResponse {
+        val body = AzphaltJson.encodeToString(installed)
+        return AzphaltJson.decodeFromString(
+            httpPost("$base/updates", body, mapOf("Content-Type" to "application/json")),
+        )
+    }
+
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 }
 
-/** GET /.well-known/azphalt-repository.json */
+/**
+ * GET /.well-known/azphalt-repository.json — registry identity and capabilities. [version] is the
+ * repository-API format the registry speaks; [signingKeys] seed a host's trust store so packages the
+ * registry counter-signs verify as trusted. Extra/unknown fields are ignored (lenient JSON).
+ */
 @Serializable
 data class RepositoryInfo(
     val name: String,
     val version: String,
     val description: String? = null,
+    val auth: RepositoryAuth? = null,
+    /** Contribution types this registry serves (e.g. "audio", "lut"); advisory. */
+    val supportedTypes: List<String> = emptyList(),
+    /** Host-app profiles this registry targets (spec profiles), e.g. "video-audio". */
+    val profiles: List<String> = emptyList(),
+    val signingKeys: List<RepositorySigningKey> = emptyList(),
+)
+
+/** The registry's auth protocol (spec/repository-api.md), e.g. `{ "type": "oauth2", "url": … }`. */
+@Serializable
+data class RepositoryAuth(
+    val type: String,
+    val url: String? = null,
+)
+
+/** An Ed25519 public key the registry signs (or counter-signs) packages with. */
+@Serializable
+data class RepositorySigningKey(
+    val publicKey: String,
+    val keyId: String? = null,
+    val label: String? = null,
+)
+
+/** GET /revocations — the revocation feed body. */
+@Serializable
+data class RevocationsFeed(
+    val revocations: List<Revocation> = emptyList(),
+)
+
+/** One revoked package version (spec/repository-api.md § Revocations). */
+@Serializable
+data class Revocation(
+    val id: String,
+    val version: String,
+    val reason: String? = null,
+    val revokedAt: String? = null,
+)
+
+/** One installed (id, version) to check for a newer release. POST /updates request element. */
+@Serializable
+data class UpdateQuery(
+    val id: String,
+    val version: String,
+)
+
+/** POST /updates response — only ids that have a newer [UpdateInfo.latest] than the one sent. */
+@Serializable
+data class UpdatesResponse(
+    val updates: List<UpdateInfo> = emptyList(),
+)
+
+/** A package with a newer version available (spec/repository-api.md § Updates). */
+@Serializable
+data class UpdateInfo(
+    val id: String,
+    val latest: String,
 )
 
 /** A package as it appears in a registry search result or detail response. */
@@ -78,6 +164,8 @@ data class RepositoryPackage(
     val description: String? = null,
     /** "free" or "paid"; absent is treated as free. */
     val priceStatus: String? = null,
+    /** Store-card preview (spec/extension-manifest.md § preview) — a browse grid without downloading. */
+    val preview: Preview? = null,
 )
 
 /** GET /packages — paginated. */
@@ -99,6 +187,7 @@ data class PackageDetail(
     val tags: List<String> = emptyList(),
     val types: List<String> = emptyList(),
     val priceStatus: String? = null,
+    val preview: Preview? = null,
     val versions: List<String> = emptyList(),
 )
 
@@ -129,5 +218,6 @@ fun RepositoryPackage.toMarketplaceEntry(downloadUrl: String): MarketplaceEntry 
         rating = null,
         tags = tags,
         source = downloadUrl,
+        previewImage = preview?.image,
     )
 }

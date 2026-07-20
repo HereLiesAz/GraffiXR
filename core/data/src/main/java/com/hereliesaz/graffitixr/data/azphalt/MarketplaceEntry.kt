@@ -19,13 +19,16 @@ data class MarketplaceEntry(
     val tags: List<String>,
     /** Where the .azp lives: "asset:marketplace/foo.azp" (bundled) or "https://…". */
     val source: String,
+    /** Optional store-card preview image (spec preview.image): in-package path or `https:` URL. */
+    val previewImage: String? = null,
 ) {
     /**
      * True when GraffitiXR can install this today. As an asset-only host it takes `asset` and `mixed`
-     * packages (a mixed package installs, but only its asset contributions are used); pure `code`
-     * extensions need the JS/WASM sandbox, which isn't here yet.
+     * packages (a mixed package installs, but only its asset contributions are used). Pure `code`
+     * extensions need the JS/WASM sandbox (not here yet), and the `app`/`mcp` host-integration kinds
+     * this host doesn't run at all.
      */
-    val installable: Boolean get() = kind != ExtensionKind.CODE
+    val installable: Boolean get() = kind == ExtensionKind.ASSET || kind == ExtensionKind.MIXED
 }
 
 /**

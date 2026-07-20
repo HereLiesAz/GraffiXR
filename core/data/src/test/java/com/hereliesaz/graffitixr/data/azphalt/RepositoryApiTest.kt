@@ -55,6 +55,68 @@ class RepositoryApiTest {
     }
 
     @Test
+    fun `discover parses identity, auth and signing keys`() {
+        val fake = FakeHttp(mapOf(
+            "/.well-known/azphalt-repository.json" to """
+                {
+                  "name": "Official SFX Library", "version": "0.1",
+                  "description": "High-quality sound effects.",
+                  "auth": { "type": "oauth2", "url": "https://sfx.example.com/oauth/authorize" },
+                  "supportedTypes": ["audio", "lut"], "profiles": ["video-audio"],
+                  "signingKeys": [{ "publicKey": "MCowBQYDK2VwAyEA", "keyId": "reg-2026", "label": "Official SFX Library" }]
+                }
+            """.trimIndent(),
+        ))
+        val info = RepositoryClient("https://sfx.example.com", fake::get).discover()
+
+        assertEquals("0.1", info.version)
+        assertEquals("oauth2", info.auth?.type)
+        assertEquals(listOf("audio", "lut"), info.supportedTypes)
+        assertEquals("reg-2026", info.signingKeys.single().keyId)
+        assertTrue(fake.requested.single().endsWith("/.well-known/azphalt-repository.json"))
+    }
+
+    @Test
+    fun `revocations feed parses`() {
+        val fake = FakeHttp(mapOf(
+            "/revocations" to """
+                { "revocations": [
+                  { "id": "com.sfx.explosions-pack", "version": "1.1.0", "reason": "malware", "revokedAt": "2026-06-01T09:30:00Z" }
+                ] }
+            """.trimIndent(),
+        ))
+        val feed = RepositoryClient("https://reg.example", fake::get).revocations()
+
+        assertEquals("com.sfx.explosions-pack", feed.revocations.single().id)
+        assertEquals("malware", feed.revocations.single().reason)
+        assertTrue(fake.requested.single().endsWith("/revocations"))
+    }
+
+    @Test
+    fun `checkUpdates posts installed versions and parses newer releases`() {
+        val posted = mutableListOf<Pair<String, String>>()
+        val client = RepositoryClient(
+            "https://reg.example",
+            httpGet = { _, _ -> error("GET not expected") },
+            httpPost = { url, body, _ ->
+                posted += url to body
+                """{ "updates": [ { "id": "com.sfx.explosions-pack", "latest": "1.2.0" } ] }"""
+            },
+        )
+
+        val resp = client.checkUpdates(listOf(
+            UpdateQuery("com.sfx.explosions-pack", "1.1.0"),
+            UpdateQuery("com.hereliesaz.halftone", "1.2.0"),
+        ))
+
+        assertEquals("1.2.0", resp.updates.single().latest)
+        val (url, body) = posted.single()
+        assertEquals("https://reg.example/updates", url)
+        assertTrue(body.contains("com.sfx.explosions-pack"))
+        assertTrue(body.contains("1.1.0"))
+    }
+
+    @Test
     fun `download url is well-formed and encodes segments`() {
         val client = RepositoryClient("https://reg.example", { _, _ -> "" })
         assertEquals(
@@ -80,5 +142,12 @@ class RepositoryApiTest {
         // Asset card is installable by this host; a pure-code one is not.
         assertTrue(asset.toMarketplaceEntry("u").installable)
         assertFalse(code.toMarketplaceEntry("u").installable)
+
+        // A registry preview image is carried onto the catalog card for the browse grid.
+        val withPreview = RepositoryPackage(
+            "com.a.lut", "A", version = "1.0.0", types = listOf("lut"),
+            preview = com.hereliesaz.graffitixr.common.azphalt.Preview(image = "https://cdn.example/card.png"),
+        ).toMarketplaceEntry("u")
+        assertEquals("https://cdn.example/card.png", withPreview.previewImage)
     }
 }

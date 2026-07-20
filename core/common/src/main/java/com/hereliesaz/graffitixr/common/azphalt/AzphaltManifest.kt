@@ -33,16 +33,38 @@ data class AzphaltManifest(
     val capabilities: List<Capability> = emptyList(),
     val contributes: Contributes? = null,
     val assets: List<AssetContribution> = emptyList(),
+    /**
+     * Static store-card preview (spec/extension-manifest.md § preview) — surfaced in registry search so
+     * a host can render a browse grid without downloading or executing the package.
+     */
+    val preview: Preview? = null,
     /** Payload path → `sha256-…` digest. A host MUST verify every file before use. */
     val files: Map<String, String> = emptyMap(),
 )
 
+/**
+ * A package's `kind` (spec/extension-manifest.md § kind). `0.1` closes the set at these five:
+ * `asset`/`code`/`mixed` carry data and/or sandboxed code; `app` is a companion application and
+ * `mcp` an MCP server — the two host-integration kinds GraffitiXR (an asset host) does not run.
+ */
 @Serializable
 enum class ExtensionKind {
     @SerialName("asset") ASSET,
     @SerialName("code") CODE,
     @SerialName("mixed") MIXED,
+    @SerialName("app") APP,
+    @SerialName("mcp") MCP,
 }
+
+/**
+ * The store-card preview (spec/extension-manifest.md § preview): a still [image] and/or a short
+ * [clip], each an in-package path or an `https:` URL. Both optional.
+ */
+@Serializable
+data class Preview(
+    val image: String? = null,
+    val clip: String? = null,
+)
 
 @Serializable
 enum class Runtime {
@@ -50,15 +72,41 @@ enum class Runtime {
     @SerialName("wasm") WASM,
 }
 
-@Serializable
-enum class Capability {
-    @SerialName("canvas") CANVAS,
-    @SerialName("layers") LAYERS,
-    @SerialName("bitmap") BITMAP,
-    @SerialName("selection") SELECTION,
-    @SerialName("color") COLOR,
-    @SerialName("params") PARAMS,
-    @SerialName("assets") ASSETS,
+/**
+ * The least-privilege capabilities a code extension declares (spec/extension-manifest.md § capabilities).
+ * The spec frames this as an **extensible** list, so — like [AssetType] — an unrecognised capability
+ * deserializes to [UNKNOWN] instead of throwing: a package requesting a capability newer than this build
+ * still parses, and the host simply never grants what it doesn't understand (fail-safe: less privilege).
+ */
+@Serializable(with = Capability.Serializer::class)
+enum class Capability(val wire: String) {
+    CANVAS("canvas"),
+    LAYERS("layers"),
+    BITMAP("bitmap"),
+    SELECTION("selection"),
+    COLOR("color"),
+    PARAMS("params"),
+    ASSETS("assets"),
+    TIME("time"),
+    AUDIO("audio"),
+
+    /** A capability this host build does not recognise; never granted. */
+    UNKNOWN("");
+
+    internal object Serializer : kotlinx.serialization.KSerializer<Capability> {
+        override val descriptor = kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "com.hereliesaz.graffitixr.common.azphalt.Capability",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+        override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: Capability) =
+            encoder.encodeString(value.wire)
+
+        override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): Capability {
+            val raw = decoder.decodeString()
+            return entries.firstOrNull { it.wire == raw } ?: UNKNOWN
+        }
+    }
 }
 
 @Serializable
@@ -101,6 +149,8 @@ enum class AssetType(val wire: String) {
     FONT("font"),
     AUDIO("audio"),
     VECTOR("vector"),
+    TEMPLATE("template"),
+    OVERLAY("overlay"),
 
     // AI model assets. Paired with AssetContribution.role (e.g. "depth", "segmentation") so a host
     // routes the model graph to the right on-device engine.

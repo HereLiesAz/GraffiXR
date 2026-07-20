@@ -202,6 +202,21 @@ class AzpInstallerTest {
     }
 
     @Test
+    fun `app and mcp host-integration kinds are rejected by the asset-only host`() {
+        for (kind in listOf("app", "mcp")) {
+            val payload = mapOf("LICENSE" to license)
+            val bytes = zip(payload + ("manifest.json" to manifest("com.test.$kind", payload, kind = kind)))
+            val installer = AzpInstaller(tmp.newFolder("extensions-$kind"))
+            try {
+                installer.install(ByteArrayInputStream(bytes), nowMs = 0L)
+                fail("Expected InstallException for kind=$kind")
+            } catch (e: AzpInstaller.InstallException) {
+                assertTrue(e.message!!.contains("kind=$kind"))
+            }
+        }
+    }
+
+    @Test
     fun `incompatible compat is rejected`() {
         val payload = mapOf("LICENSE" to license)
         // Needs a newer spec than this host implements (0.1).
