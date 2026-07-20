@@ -1356,6 +1356,26 @@ class EditorViewModel @Inject constructor(
         saveProject()
     }
 
+    /**
+     * Sets the corner radius (px) on every [ShapeKind.RECTANGLE] shape of the active vector layer;
+     * ellipse/line shapes are left untouched. The radius is clamped per-shape to half the shape's
+     * shorter side (beyond that a rectangle is already fully rounded). No-op on non-vector layers.
+     */
+    fun setVectorCornerRadius(radius: Float) {
+        val st = _uiState.value
+        val active = st.layers.find { it.id == st.activeLayerId } ?: return
+        if (active.shapes.isEmpty()) return
+        val updated = active.shapes.map { s ->
+            if (s.kind == com.hereliesaz.graffitixr.common.model.ShapeKind.RECTANGLE) {
+                val maxR = minOf(s.width, s.height) / 2f
+                s.copy(cornerRadius = radius.coerceIn(0f, maxR))
+            } else s
+        }
+        pushHistory()
+        dispatch(EditorIntent.SetLayerShapes(active.id, updated))
+        saveProject()
+    }
+
     override fun onLayerDuplicated(id: String) {
         val layer = _uiState.value.layers.find { it.id == id } ?: return
         val projectId = _uiState.value.projectId ?: return

@@ -37,6 +37,7 @@ import com.hereliesaz.graffitixr.design.theme.AppStrings
 import com.hereliesaz.graffitixr.design.theme.Cyan
 import com.hereliesaz.graffitixr.design.theme.rememberAppStrings
 import com.hereliesaz.graffitixr.feature.editor.BlendModePicker
+import com.hereliesaz.graffitixr.feature.editor.CornerRadiusDialog
 import com.hereliesaz.graffitixr.feature.editor.DocumentSizeDialog
 import com.hereliesaz.graffitixr.feature.editor.EditorScreen
 import com.hereliesaz.graffitixr.feature.editor.EditorViewModel
@@ -110,6 +111,9 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
     // Vector stroke-width picker visibility (opened from the Design folder's "Stroke" item).
     var showStrokeDialog by remember { mutableStateOf(false) }
 
+    // Vector corner-radius picker visibility (opened from the Design folder's "Corners" item).
+    var showCornerDialog by remember { mutableStateOf(false) }
+
     // Open a shared image (two-app interop) as a layer once, after the ViewModel exists.
     LaunchedEffect(sharedImageUri) {
         sharedImageUri?.let { vm.onAddLayer(it) }
@@ -152,6 +156,7 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
             onDocumentSize = { showDocDialog = true },
             onBlendMode = { showBlendDialog = true },
             onStrokeWidth = { showStrokeDialog = true },
+            onCornerRadius = { showCornerDialog = true },
             onShare = {
                 // Interop hand-off: composite the design to a content:// Uri and offer it to any app
                 // (e.g. GraffitiXR to project in AR). No-op silently if there's nothing to share.
@@ -232,6 +237,19 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
                     onDismiss = { showStrokeDialog = false },
                 )
             }
+
+            if (showCornerDialog) {
+                val activeLayer = uiState.layers.find { it.id == uiState.activeLayerId }
+                val rect = activeLayer?.shapes?.firstOrNull { it.kind == ShapeKind.RECTANGLE }
+                CornerRadiusDialog(
+                    currentRadius = rect?.cornerRadius ?: 0f,
+                    onApply = { r ->
+                        vm.setVectorCornerRadius(r)
+                        showCornerDialog = false
+                    },
+                    onDismiss = { showCornerDialog = false },
+                )
+            }
         }
     }
 }
@@ -253,6 +271,7 @@ private fun AzNavHostScope.ConfigureRailItems(
     onDocumentSize: () -> Unit,
     onBlendMode: () -> Unit,
     onStrokeWidth: () -> Unit,
+    onCornerRadius: () -> Unit,
 ) {
     val navStrings = strings.nav
 
@@ -354,6 +373,12 @@ private fun AzNavHostScope.ConfigureRailItems(
         if (overlay.shapes.isNotEmpty()) {
             azRailSubItem(id = "design.stroke", hostId = "host.design", text = "Stroke", color = navItemColor, shape = AzButtonShape.NONE) {
                 onStrokeWidth()
+            }
+        }
+        // Rectangle-only: corner radius.
+        if (overlay.shapes.any { it.kind == ShapeKind.RECTANGLE }) {
+            azRailSubItem(id = "design.corners", hostId = "host.design", text = "Corners", color = navItemColor, shape = AzButtonShape.NONE) {
+                onCornerRadius()
             }
         }
     }
