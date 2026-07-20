@@ -136,13 +136,20 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
                 // Interop hand-off: composite the design to a content:// Uri and offer it to any app
                 // (e.g. GraffitiXR to project in AR). No-op silently if there's nothing to share.
                 scope.launch {
-                    val uri = vm.exportForShare() ?: return@launch
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    // exportForShare() does suspend I/O (composite + write to cacheDir) and
+                    // startActivity can throw (e.g. no chooser target) — catch so a share failure
+                    // surfaces as a log line, never an unhandled-coroutine crash.
+                    try {
+                        val uri = vm.exportForShare() ?: return@launch
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "image/png"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(send, null))
+                    } catch (t: Throwable) {
+                        android.util.Log.w("Graffux", "Share failed", t)
                     }
-                    context.startActivity(Intent.createChooser(send, null))
                 }
             },
         )
