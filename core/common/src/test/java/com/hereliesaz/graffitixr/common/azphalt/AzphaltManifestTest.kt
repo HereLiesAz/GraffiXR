@@ -129,7 +129,7 @@ class AzphaltManifestTest {
     }
 
     @Test
-    fun `parses the app and mcp host-integration kinds`() {
+    fun `parses the app and mcp kinds and tolerates an unknown one`() {
         val app = parseManifest(
             """
             { "azphalt":"0.1","id":"com.x.app","name":"App","version":"1.0.0","kind":"app",
@@ -144,6 +144,15 @@ class AzphaltManifestTest {
             """.trimIndent(),
         )
         assertEquals(ExtensionKind.MCP, mcp.kind)
+        // A kind newer than this build maps to UNKNOWN instead of throwing (parses, then the installer
+        // refuses it) — matching AssetType/Capability's forward-compat behaviour.
+        val future = parseManifest(
+            """
+            { "azphalt":"0.1","id":"com.x.future","name":"Future","version":"1.0.0","kind":"theme",
+              "license":"MIT","compat":">=0.1","files":{} }
+            """.trimIndent(),
+        )
+        assertEquals(ExtensionKind.UNKNOWN, future.kind)
     }
 
     @Test

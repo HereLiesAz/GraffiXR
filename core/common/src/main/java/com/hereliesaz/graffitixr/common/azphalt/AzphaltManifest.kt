@@ -43,17 +43,37 @@ data class AzphaltManifest(
 )
 
 /**
- * A package's `kind` (spec/extension-manifest.md § kind). `0.1` closes the set at these five:
- * `asset`/`code`/`mixed` carry data and/or sandboxed code; `app` is a companion application and
- * `mcp` an MCP server — the two host-integration kinds GraffitiXR (an asset host) does not run.
+ * A package's `kind` (spec/extension-manifest.md § kind). `0.1` names five: `asset`/`code`/`mixed`
+ * carry data and/or sandboxed code; `app` is a companion application and `mcp` an MCP server — the two
+ * host-integration kinds GraffitiXR (an asset host) does not run. Like [AssetType]/[Capability], a kind
+ * newer than this build deserializes to [UNKNOWN] rather than throwing: the manifest still parses, and
+ * the installer's asset-only policy refuses anything that isn't `asset`/`mixed` with a clear message.
  */
-@Serializable
-enum class ExtensionKind {
-    @SerialName("asset") ASSET,
-    @SerialName("code") CODE,
-    @SerialName("mixed") MIXED,
-    @SerialName("app") APP,
-    @SerialName("mcp") MCP,
+@Serializable(with = ExtensionKind.Serializer::class)
+enum class ExtensionKind(val wire: String) {
+    ASSET("asset"),
+    CODE("code"),
+    MIXED("mixed"),
+    APP("app"),
+    MCP("mcp"),
+
+    /** A kind this host build does not recognise; never installable. */
+    UNKNOWN("");
+
+    internal object Serializer : kotlinx.serialization.KSerializer<ExtensionKind> {
+        override val descriptor = kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "com.hereliesaz.graffitixr.common.azphalt.ExtensionKind",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+        override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: ExtensionKind) =
+            encoder.encodeString(value.wire)
+
+        override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): ExtensionKind {
+            val raw = decoder.decodeString()
+            return entries.firstOrNull { it.wire == raw } ?: UNKNOWN
+        }
+    }
 }
 
 /**

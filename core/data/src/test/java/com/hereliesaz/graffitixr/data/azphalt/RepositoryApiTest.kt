@@ -55,6 +55,45 @@ class RepositoryApiTest {
     }
 
     @Test
+    fun `official store base url targets the www api host`() {
+        assertEquals("https://www.azphalt.store/api", AzphaltStore.REGISTRY_BASE_URL)
+    }
+
+    @Test
+    fun `listPackages parses the official store's flat array and maps live fields`() {
+        val fake = FakeHttp(mapOf(
+            "/packages" to """
+                [
+                  { "id":"com.azphalt.model.vosk","name":"Vosk Transcription","author":"Azphalt Models",
+                    "version":"0.22.0","kind":"asset","capabilities":["assets"],"downloads":6200,
+                    "ratingCount":0,"updatedAt":"2026-07-20T01:00:00Z","targetApps":[],
+                    "mediaDomains":["model"],"types":["model"],"price":null },
+                  { "id":"com.paid.pack","name":"Paid Pack","version":"1.0.0","kind":"asset",
+                    "types":["lut"],"downloads":10,"price":499 }
+                ]
+            """.trimIndent(),
+        ))
+        val client = RepositoryClient("https://www.azphalt.store/api", fake::get)
+
+        val pkgs = client.listPackages()
+        assertEquals(2, pkgs.size)
+        val vosk = pkgs[0]
+        assertEquals(ExtensionKind.ASSET, vosk.kind)   // declared kind is used directly
+        assertEquals(6200, vosk.downloads)
+        assertFalse(vosk.isPaid)                        // price: null → free
+        assertTrue(pkgs[1].isPaid)                      // numeric price → paid
+
+        // Live kind + downloads flow onto the catalog card; an asset package is installable.
+        val card = vosk.toMarketplaceEntry(
+            "https://www.azphalt.store/api/packages/com.azphalt.model.vosk/versions/0.22.0/download",
+        )
+        assertEquals(ExtensionKind.ASSET, card.kind)
+        assertEquals(6200, card.downloads)
+        assertTrue(card.installable)
+        assertTrue(fake.requested.single().endsWith("/packages"))
+    }
+
+    @Test
     fun `discover parses identity, auth and signing keys`() {
         val fake = FakeHttp(mapOf(
             "/.well-known/azphalt-repository.json" to """

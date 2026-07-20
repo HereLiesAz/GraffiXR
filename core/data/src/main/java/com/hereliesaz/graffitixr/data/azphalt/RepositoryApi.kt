@@ -5,7 +5,19 @@ import com.hereliesaz.graffitixr.common.azphalt.ExtensionKind
 import com.hereliesaz.graffitixr.common.azphalt.Preview
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import java.net.URLEncoder
+
+/** The official azphalt storefront (https://azphalt.store) and its registry API. */
+object AzphaltStore {
+    /**
+     * Registry API base for the official store. The apex `azphalt.store` 308-redirects to `www`, so we
+     * target `www` directly. The store currently serves a bare package array at `GET /packages`
+     * (see [RepositoryClient.listPackages]); the richer repository-api.md endpoints may not exist yet.
+     */
+    const val REGISTRY_BASE_URL: String = "https://www.azphalt.store/api"
+}
 
 /**
  * Client + models for an azphalt registry (spec/repository-api.md, format 0.1). A registry lets
@@ -49,6 +61,18 @@ class RepositoryClient(
         return AzphaltJson.decodeFromString(httpGet("$base/packages?$params", emptyMap()))
     }
 
+    /**
+     * GET /packages returning the registry's package list as a **bare JSON array** — the shape the
+     * official azphalt store serves (it returns the whole catalog and ignores paging). [search] is for
+     * registries that implement the paginated `{packages,total,page,pages}` envelope from
+     * repository-api.md; this is for the flat-array store. An optional [q] is passed through for
+     * registries that filter, and harmlessly ignored by ones that don't.
+     */
+    fun listPackages(q: String? = null): List<RepositoryPackage> {
+        val url = if (q.isNullOrBlank()) "$base/packages" else "$base/packages?q=" + enc(q)
+        return AzphaltJson.decodeFromString(httpGet(url, emptyMap()))
+    }
+
     /** GET /packages/{id} — full detail and version history. */
     fun detail(id: String): PackageDetail =
         AzphaltJson.decodeFromString(httpGet("$base/packages/${enc(id)}", emptyMap()))
@@ -75,6 +99,8 @@ class RepositoryClient(
      * transport (see [httpPost]).
      */
     fun checkUpdates(installed: List<UpdateQuery>): UpdatesResponse {
+        // Nothing installed → nothing to check; skip the network round-trip entirely.
+        if (installed.isEmpty()) return UpdatesResponse()
         val body = AzphaltJson.encodeToString(installed)
         return AzphaltJson.decodeFromString(
             httpPost("$base/updates", body, mapOf("Content-Type" to "application/json")),
@@ -152,18 +178,31 @@ data class UpdateInfo(
     val latest: String,
 )
 
-/** A package as it appears in a registry search result or detail response. */
+/**
+ * A package as it appears in a registry search result or detail response. Fields cover both the
+ * repository-api.md envelope and the official store's flat `/packages` objects (which additionally
+ * carry [kind], [downloads], [ratingCount], [updatedAt], [mediaDomains] and a nullable [price]).
+ */
 @Serializable
 data class RepositoryPackage(
     val id: String,
     val name: String,
     val author: String? = null,
     val version: String,
+    /** Declared package kind when the registry provides it; otherwise inferred from [types]. */
+    val kind: ExtensionKind? = null,
     val types: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val description: String? = null,
     /** "free" or "paid"; absent is treated as free. */
     val priceStatus: String? = null,
+    /** Official store's price: `null` (or JSON null) means free; any other value means paid. */
+    val price: JsonElement? = null,
+    val downloads: Int = 0,
+    val ratingCount: Int = 0,
+    val updatedAt: String? = null,
+    val mediaDomains: List<String> = emptyList(),
+    val targetApps: List<String> = emptyList(),
     /** Store-card preview (spec/extension-manifest.md § preview) — a browse grid without downloading. */
     val preview: Preview? = null,
 )
@@ -192,29 +231,33 @@ data class PackageDetail(
 )
 
 /** True when this package requires payment/entitlement to download. */
-val RepositoryPackage.isPaid: Boolean get() = priceStatus.equals("paid", ignoreCase = true)
+val RepositoryPackage.isPaid: Boolean
+    get() = priceStatus.equals("paid", ignoreCase = true) || (price != null && price !is JsonNull)
 
 /**
  * Map a registry package to a GraffitiXR catalog card. [downloadUrl] is the resolved `.azp` URL the
- * installer fetches (see [RepositoryClient.downloadUrl]). Kind is inferred from [RepositoryPackage.types]:
- * a `code` type alone is CODE, `code` alongside asset types is MIXED, anything else is ASSET.
+ * installer fetches (see [RepositoryClient.downloadUrl]). Kind uses the package's declared [kind] when
+ * the registry provides one; otherwise it's inferred from [types]: a `code` type alone is CODE, `code`
+ * alongside asset types is MIXED, anything else is ASSET.
  */
 fun RepositoryPackage.toMarketplaceEntry(downloadUrl: String): MarketplaceEntry {
-    val hasCode = types.any { it.equals("code", ignoreCase = true) }
-    val hasAsset = types.any { !it.equals("code", ignoreCase = true) }
-    val kind = when {
-        hasCode && hasAsset -> ExtensionKind.MIXED
-        hasCode -> ExtensionKind.CODE
-        else -> ExtensionKind.ASSET
+    val resolvedKind = kind ?: run {
+        val hasCode = types.any { it.equals("code", ignoreCase = true) }
+        val hasAsset = types.any { !it.equals("code", ignoreCase = true) }
+        when {
+            hasCode && hasAsset -> ExtensionKind.MIXED
+            hasCode -> ExtensionKind.CODE
+            else -> ExtensionKind.ASSET
+        }
     }
     return MarketplaceEntry(
         id = id,
         name = name,
-        kind = kind,
+        kind = resolvedKind,
         author = author ?: "",
         description = description ?: "",
         priceLabel = if (isPaid) "Paid" else "Free",
-        downloads = 0,
+        downloads = downloads,
         rating = null,
         tags = tags,
         source = downloadUrl,
