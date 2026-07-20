@@ -69,6 +69,8 @@ internal object EditorReducer {
         is EditorIntent.SetActiveTool -> state.copy(activeTool = intent.tool, activePanel = EditorPanel.NONE)
         EditorIntent.ToggleAdjustPanel ->
             state.copy(activePanel = if (state.activePanel == EditorPanel.ADJUST) EditorPanel.NONE else EditorPanel.ADJUST)
+        EditorIntent.ToggleTransformPanel ->
+            state.copy(activePanel = if (state.activePanel == EditorPanel.TRANSFORM) EditorPanel.NONE else EditorPanel.TRANSFORM)
         EditorIntent.ToggleLayersPanel ->
             state.copy(activePanel = if (state.activePanel == EditorPanel.LAYERS) EditorPanel.NONE else EditorPanel.LAYERS)
         EditorIntent.DismissPanel -> state.copy(activePanel = EditorPanel.NONE)

@@ -74,6 +74,15 @@ fun EditorUi(
                 }
             }
 
+            // 1b. Precise numeric transform panel (X / Y / Scale / Rotation of the active layer).
+            if (uiState.activePanel == EditorPanel.TRANSFORM) {
+                TransformPanel(
+                    activeLayer = uiState.layers.find { it.id == uiState.activeLayerId },
+                    actions = actions,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+
             // 2. Integrated Adjustments Panel (Knobs + Undo/Redo/Magic)
             val activeLayer = uiState.layers.find { it.id == uiState.activeLayerId }
             val overlayLayer = activeLayer?.let {

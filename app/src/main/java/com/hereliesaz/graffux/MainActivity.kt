@@ -276,6 +276,15 @@ private fun AzNavHostScope.ConfigureRailItems(
     ) {
         vm.onAdjustClicked()
     }
+    azRailSubItem(
+        id = "design.transform",
+        hostId = "host.design",
+        text = "Transform",
+        color = if (uiState.activePanel == EditorPanel.TRANSFORM) Cyan else navItemColor,
+        shape = AzButtonShape.NONE
+    ) {
+        vm.onTransformClicked()
+    }
     // Core tracing prep (act on the active overlay layer) — matches GraffitiXR's Design sub-items.
     val overlay = uiState.layers.find { it.id == uiState.activeLayerId }
     if (overlay != null) {
