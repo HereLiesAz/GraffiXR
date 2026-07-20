@@ -47,7 +47,10 @@ data class Layer(
     val scale: Float = 1.0f,
     val isInverted: Boolean = false,
     val stencilType: StencilLayerType? = null,
-    val stencilSourceId: String? = null
+    val stencilSourceId: String? = null,
+    // Vector content. When non-empty this is a vector layer (rendered from these shapes via Canvas);
+    // when empty the layer is the usual raster layer backed by [bitmap]. Defaulted for back-compat.
+    val shapes: List<VectorShape> = emptyList()
 )
 
 /**

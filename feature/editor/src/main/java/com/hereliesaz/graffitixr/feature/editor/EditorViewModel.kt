@@ -527,6 +527,34 @@ class EditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Adds a vector layer holding a single [kind] shape, centered and active. Unlike raster layers
+     * this needs no bitmap/artifact — the shape is drawn from the model — so it's synchronous.
+     */
+    fun onAddShapeLayer(kind: com.hereliesaz.graffitixr.common.model.ShapeKind) {
+        pushHistory()
+        val name = when (kind) {
+            com.hereliesaz.graffitixr.common.model.ShapeKind.RECTANGLE -> "Rectangle"
+            com.hereliesaz.graffitixr.common.model.ShapeKind.ELLIPSE -> "Ellipse"
+            com.hereliesaz.graffitixr.common.model.ShapeKind.LINE -> "Line"
+        }
+        val count = _uiState.value.layers.count { it.shapes.isNotEmpty() }
+        val shape = when (kind) {
+            com.hereliesaz.graffitixr.common.model.ShapeKind.LINE ->
+                com.hereliesaz.graffitixr.common.model.VectorShape(kind = kind, strokeArgb = 0xFFFFFFFFL, strokeWidth = 6f)
+            else ->
+                com.hereliesaz.graffitixr.common.model.VectorShape(kind = kind, fillArgb = 0xFF888888L, strokeWidth = 0f)
+        }
+        val newLayer = Layer(
+            id = UUID.randomUUID().toString(),
+            name = "$name ${count + 1}",
+            shapes = listOf(shape),
+        )
+        dispatch(EditorIntent.AddLayer(newLayer))
+        opEmitter.emit(Op.LayerAdd(newLayer))
+        saveProject()
+    }
+
     fun setBackgroundImage(uri: Uri) {
         val projectId = _uiState.value.projectId ?: return
         viewModelScope.launch(dispatchers.io) {
@@ -1845,6 +1873,19 @@ class EditorViewModel @Inject constructor(
 
     override fun setActiveColor(color: Color) {
         dispatch(EditorIntent.SetActiveColor(color))
+        // If a vector layer is active, recolour its shapes: fill for rect/ellipse, stroke for lines.
+        val st = _uiState.value
+        val active = st.layers.find { it.id == st.activeLayerId }
+        if (active != null && active.shapes.isNotEmpty()) {
+            val argb = color.toArgb().toLong() and 0xFFFFFFFFL
+            val recoloured = active.shapes.map { s ->
+                if (s.kind == com.hereliesaz.graffitixr.common.model.ShapeKind.LINE) s.copy(strokeArgb = argb)
+                else s.copy(fillArgb = argb)
+            }
+            pushHistory()
+            dispatch(EditorIntent.SetLayerShapes(active.id, recoloured))
+            saveProject()
+        }
     }
 
     override fun adjustColorLightness(delta: Float) {

@@ -15,6 +15,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -24,12 +25,16 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import com.hereliesaz.graffitixr.common.model.EditorMode
+import com.hereliesaz.graffitixr.common.model.Layer
+import com.hereliesaz.graffitixr.common.model.ShapeKind
 import com.hereliesaz.graffitixr.common.model.Tool
+import com.hereliesaz.graffitixr.common.model.VectorShape
 import com.hereliesaz.graffitixr.design.detectSmartOverlayGestures
 import com.hereliesaz.graffitixr.design.theme.rememberAppStrings
 
@@ -74,6 +79,11 @@ fun EditorScreen(
         // 1. Layer stack render.
         uiState.layers.filter { it.isVisible }.forEach { layer ->
             key(layer.id) {
+                // Vector layer: drawn from its shapes via Canvas. (A raster layer's bitmap path below
+                // no-ops for it, since a vector layer carries no bitmap.)
+                if (layer.shapes.isNotEmpty()) {
+                    VectorLayerContent(layer, modifier = Modifier.fillMaxSize())
+                }
                 val isLive = layer.id == uiState.liveStrokeLayerId
                 val bmp = if (isLive) uiState.liveStrokeBitmap ?: layer.bitmap else layer.bitmap
                 bmp?.let { displayBmp ->
@@ -240,5 +250,63 @@ private fun ArtboardFrame(
         if (left + rectW < size.width) drawRect(scrim, Offset(left + rectW, top), Size(size.width - left - rectW, rectH))
         // Document outline.
         drawRect(color = border, topLeft = Offset(left, top), size = Size(rectW, rectH), style = Stroke(width = 2f))
+    }
+}
+
+/**
+ * Renders a vector [layer] — its [VectorShape]s drawn via [Canvas], centered in the surface and
+ * transformed by the layer's offset/scale/rotation/opacity/blend exactly like a raster layer's
+ * bitmap. Shapes are defined in the layer's local pixel space centered on the origin.
+ */
+@Composable
+private fun VectorLayerContent(layer: Layer, modifier: Modifier = Modifier) {
+    Canvas(
+        modifier = modifier.graphicsLayer {
+            translationX = layer.offset.x
+            translationY = layer.offset.y
+            scaleX = layer.scale
+            scaleY = layer.scale
+            rotationX = layer.rotationX
+            rotationY = layer.rotationY
+            rotationZ = layer.rotationZ
+            alpha = layer.opacity
+            transformOrigin = TransformOrigin.Center
+            blendMode = layer.blendMode
+        }
+    ) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        layer.shapes.forEach { drawVectorShape(it, cx, cy) }
+    }
+}
+
+/** Draws a single [shape] centered at ([cx], [cy]) in the current [DrawScope]. */
+private fun DrawScope.drawVectorShape(shape: VectorShape, cx: Float, cy: Float) {
+    val w = shape.width
+    val h = shape.height
+    when (shape.kind) {
+        ShapeKind.RECTANGLE -> {
+            val topLeft = Offset(cx - w / 2f, cy - h / 2f)
+            val sz = Size(w, h)
+            val radius = CornerRadius(shape.cornerRadius, shape.cornerRadius)
+            if (shape.hasFill) drawRoundRect(Color(shape.fillArgb.toInt()), topLeft, sz, radius)
+            if (shape.hasStroke) drawRoundRect(Color(shape.strokeArgb.toInt()), topLeft, sz, radius, style = Stroke(shape.strokeWidth))
+        }
+        ShapeKind.ELLIPSE -> {
+            val topLeft = Offset(cx - w / 2f, cy - h / 2f)
+            val sz = Size(w, h)
+            if (shape.hasFill) drawOval(Color(shape.fillArgb.toInt()), topLeft, sz)
+            if (shape.hasStroke) drawOval(Color(shape.strokeArgb.toInt()), topLeft, sz, style = Stroke(shape.strokeWidth))
+        }
+        ShapeKind.LINE -> {
+            if (shape.hasStroke) {
+                drawLine(
+                    Color(shape.strokeArgb.toInt()),
+                    Offset(cx - w / 2f, cy),
+                    Offset(cx + w / 2f, cy),
+                    strokeWidth = shape.strokeWidth,
+                )
+            }
+        }
     }
 }

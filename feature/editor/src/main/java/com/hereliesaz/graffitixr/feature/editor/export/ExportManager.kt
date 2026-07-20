@@ -5,9 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.BlendMode as NativeBlendMode
 import androidx.compose.ui.graphics.BlendMode
 import com.hereliesaz.graffitixr.common.model.Layer
+import com.hereliesaz.graffitixr.common.model.ShapeKind
+import com.hereliesaz.graffitixr.common.model.VectorShape
 import com.hereliesaz.graffitixr.feature.editor.createColorMatrix
 import javax.inject.Inject
 
@@ -51,6 +54,10 @@ class ExportManager @Inject constructor() {
         }
 
         layers.filter { it.isVisible }.forEach { layer ->
+            if (layer.shapes.isNotEmpty()) {
+                drawVectorLayer(canvas, layer, screenWidth, screenHeight)
+                return@forEach
+            }
             layer.bitmap?.let { b ->
                 val cm = createColorMatrix(
                     saturation = layer.saturation,
@@ -141,6 +148,61 @@ class ExportManager @Inject constructor() {
             }
         }
         return result
+    }
+
+    /**
+     * Draws a vector [layer]'s shapes into [canvas], mirroring the on-screen render: shapes are drawn
+     * centered in the (screenWidth × screenHeight) surface, transformed by the layer's
+     * scale / rotationZ / offset, with the layer opacity applied via a save-layer. Blend mode is left
+     * at the default (SrcOver) for shapes in this first pass.
+     */
+    private fun drawVectorLayer(canvas: Canvas, layer: Layer, screenWidth: Int, screenHeight: Int) {
+        val cx = screenWidth / 2f
+        val cy = screenHeight / 2f
+        val matrix = Matrix().apply {
+            postScale(layer.scale, layer.scale, cx, cy)
+            postRotate(layer.rotationZ, cx, cy)
+            postTranslate(layer.offset.x, layer.offset.y)
+        }
+        val saveCount = canvas.saveLayerAlpha(null, (layer.opacity * 255).toInt().coerceIn(0, 255))
+        canvas.concat(matrix)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        layer.shapes.forEach { drawShape(canvas, it, cx, cy, paint) }
+        canvas.restoreToCount(saveCount)
+    }
+
+    private fun drawShape(canvas: Canvas, shape: VectorShape, cx: Float, cy: Float, paint: Paint) {
+        val w = shape.width
+        val h = shape.height
+        val rect = RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
+        when (shape.kind) {
+            ShapeKind.RECTANGLE -> {
+                if (shape.hasFill) {
+                    paint.style = Paint.Style.FILL; paint.color = shape.fillArgb.toInt()
+                    canvas.drawRoundRect(rect, shape.cornerRadius, shape.cornerRadius, paint)
+                }
+                if (shape.hasStroke) {
+                    paint.style = Paint.Style.STROKE; paint.strokeWidth = shape.strokeWidth; paint.color = shape.strokeArgb.toInt()
+                    canvas.drawRoundRect(rect, shape.cornerRadius, shape.cornerRadius, paint)
+                }
+            }
+            ShapeKind.ELLIPSE -> {
+                if (shape.hasFill) {
+                    paint.style = Paint.Style.FILL; paint.color = shape.fillArgb.toInt()
+                    canvas.drawOval(rect, paint)
+                }
+                if (shape.hasStroke) {
+                    paint.style = Paint.Style.STROKE; paint.strokeWidth = shape.strokeWidth; paint.color = shape.strokeArgb.toInt()
+                    canvas.drawOval(rect, paint)
+                }
+            }
+            ShapeKind.LINE -> {
+                if (shape.hasStroke) {
+                    paint.style = Paint.Style.STROKE; paint.strokeWidth = shape.strokeWidth; paint.color = shape.strokeArgb.toInt()
+                    canvas.drawLine(cx - w / 2f, cy, cx + w / 2f, cy, paint)
+                }
+            }
+        }
     }
 
     private fun getLayerScreenMatrix(layer: Layer, screenWidth: Int, screenHeight: Int): Matrix {

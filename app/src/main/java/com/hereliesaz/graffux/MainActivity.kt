@@ -30,6 +30,7 @@ import com.hereliesaz.aznavrail.model.*
 import com.hereliesaz.graffitixr.common.model.EditorMode
 import com.hereliesaz.graffitixr.common.model.EditorPanel
 import com.hereliesaz.graffitixr.common.model.EditorUiState
+import com.hereliesaz.graffitixr.common.model.ShapeKind
 import com.hereliesaz.graffitixr.common.model.Tool
 import com.hereliesaz.graffitixr.design.theme.AppStrings
 import com.hereliesaz.graffitixr.design.theme.Cyan
@@ -230,6 +231,17 @@ private fun AzNavHostScope.ConfigureRailItems(
     }
     azRailSubItem(id = "design.add", hostId = "host.design", text = navStrings.new, color = navItemColor, shape = AzButtonShape.NONE) {
         vm.onAddBlankLayer()
+    }
+    // Vector shapes — each adds a new vector layer.
+    azRailSubHostItem(id = "design.shapes", hostId = "host.design", text = "Shape", color = navItemColor, shape = AzButtonShape.NONE)
+    azRailSubItem(id = "shape.rect", hostId = "design.shapes", text = "Rectangle", color = navItemColor, shape = AzButtonShape.NONE) {
+        vm.onAddShapeLayer(ShapeKind.RECTANGLE)
+    }
+    azRailSubItem(id = "shape.ellipse", hostId = "design.shapes", text = "Ellipse", color = navItemColor, shape = AzButtonShape.NONE) {
+        vm.onAddShapeLayer(ShapeKind.ELLIPSE)
+    }
+    azRailSubItem(id = "shape.line", hostId = "design.shapes", text = "Line", color = navItemColor, shape = AzButtonShape.NONE) {
+        vm.onAddShapeLayer(ShapeKind.LINE)
     }
     azRailSubItem(
         id = "design.layers",
