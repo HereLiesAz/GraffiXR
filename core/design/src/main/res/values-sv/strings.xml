@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Den här enheten stöder inte Depth API.\nVäxla till Canvas-läge i Inställningar.</string>
 
 
-    <string name="arcore_required_title">ARCore krävs</string>
 
-    <string name="arcore_required_text">Den här enheten har inte ARCore installerat eller stöds inte. Installera ARCore från Play Butik för att använda AR-funktioner.</string>
 
-    <string name="install_arcore">Installera ARCore</string>
 
 
     <string name="camera_permission_required">Kameratillstånd krävs för AR-läge.</string>

@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Это устройство не поддерживает Depth API.\nПереключитесь в режим Canvas в настройках.</string>
 
 
-    <string name="arcore_required_title">Требуется ARCore</string>
 
-    <string name="arcore_required_text">На этом устройстве не установлен ARCore или он не поддерживается. </string>
 
-    <string name="install_arcore">Установить ARCore</string>
 
 
     <string name="camera_permission_required">Для режима AR требуется разрешение камеры.</string>

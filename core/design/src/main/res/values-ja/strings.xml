@@ -306,11 +306,8 @@
 設定でキャンバスモードに切り替えてください。</string>
 
 
-    <string name="arcore_required_title">ARCoreが必要です</string>
 
-    <string name="arcore_required_text">このデバイスにはARCoreがインストールされていないか、サポートされていません。AR機能を使用するにはPlayストアからARCoreをインストールしてください。</string>
 
-    <string name="install_arcore">ARCoreをインストール</string>
 
 
     <string name="camera_permission_required">ARモードにはカメラの権限が必要です。</string>

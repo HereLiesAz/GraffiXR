@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Este dispositivo no es compatible con la API de Profundidad.\nCambia al modo Lienzo en Ajustes.</string>
 
     <!-- Title shown when ARCore is missing or unsupported. -->
-    <string name="arcore_required_title">Se requiere ARCore</string>
     <!-- Text explaining that ARCore is needed and providing instructions. -->
-    <string name="arcore_required_text">Este dispositivo no tiene instalado ARCore o no es compatible. Instala ARCore desde la Play Store para usar funciones AR.</string>
     <!-- Action to install ARCore from the store. -->
-    <string name="install_arcore">Instalar ARCore</string>
 
     <!-- Message shown when camera permission is denied. -->
     <string name="camera_permission_required">Se requiere permiso de cámara para el modo AR.</string>

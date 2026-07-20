@@ -336,11 +336,8 @@
     <string name="depth_unsupported">This device doesn\'t support the Depth API.\nSwitch to Canvas mode in Settings.</string>
 
     <!-- Title shown when ARCore is missing or unsupported. -->
-    <string name="arcore_required_title">ARCore is required</string>
     <!-- Text explaining that ARCore is needed and providing instructions. -->
-    <string name="arcore_required_text">This device does not have ARCore installed or is not supported. Install ARCore from the Play Store to use AR features.</string>
     <!-- Action to install ARCore from the store. -->
-    <string name="install_arcore">Install ARCore</string>
 
     <!-- Message shown when camera permission is denied. -->
     <string name="camera_permission_required">Camera permission is required for AR mode.</string>

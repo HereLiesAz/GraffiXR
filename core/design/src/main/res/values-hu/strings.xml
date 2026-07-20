@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Ez az eszköz nem támogatja a Mélységi API-t.\nVálts Vászon módra a Beállításokban.</string>
 
 
-    <string name="arcore_required_title">ARCore szükséges</string>
 
-    <string name="arcore_required_text">Ez az eszköz nem rendelkezik ARCore telepítéssel, vagy nem támogatott. Telepítsd az ARCore-t a Play Áruházból az AR funkciók használatához.</string>
 
-    <string name="install_arcore">ARCore telepítése</string>
 
 
     <string name="camera_permission_required">A kamera engedélyezése szükséges az AR módhoz.</string>

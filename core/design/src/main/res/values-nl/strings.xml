@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Dit apparaat ondersteunt de Depth API niet.\nSchakel naar Canvas-modus in Instellingen.</string>
 
 
-    <string name="arcore_required_title">ARCore is vereist</string>
 
-    <string name="arcore_required_text">Op dit apparaat is geen ARCore geïnstalleerd of wordt niet ondersteund. Installeer ARCore vanuit de Play Store om AR-functies te gebruiken.</string>
 
-    <string name="install_arcore">Installeer ARCore</string>
 
 
     <string name="camera_permission_required">Voor de AR-modus is cameratoestemming vereist.</string>

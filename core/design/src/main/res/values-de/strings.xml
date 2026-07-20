@@ -305,11 +305,8 @@
     <string name="depth_unsupported">Dieses Gerät unterstützt die Depth API nicht.\nWechseln Sie in den Einstellungen zum Leinwand-Modus.</string>
 
     <!-- Title shown when ARCore is missing or unsupported. -->
-    <string name="arcore_required_title">ARCore ist erforderlich</string>
     <!-- Text explaining that ARCore is needed and providing instructions. -->
-    <string name="arcore_required_text">Auf diesem Gerät ist ARCore nicht installiert oder es wird nicht unterstützt. Installieren Sie ARCore aus dem Play Store, um AR-Funktionen zu nutzen.</string>
     <!-- Action to install ARCore from the store. -->
-    <string name="install_arcore">ARCore installieren</string>
 
     <!-- Message shown when camera permission is denied. -->
     <string name="camera_permission_required">Für den AR-Modus ist eine Kameraberechtigung erforderlich.</string>

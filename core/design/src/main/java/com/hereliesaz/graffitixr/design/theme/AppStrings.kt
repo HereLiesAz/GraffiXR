@@ -103,9 +103,6 @@ fun rememberAppStrings(): AppStrings {
         ),
         ar = AppStrings.Ar(
             depthUnsupported = stringResource(R.string.depth_unsupported),
-            arcoreRequiredTitle = stringResource(R.string.arcore_required_title),
-            arcoreRequiredText = stringResource(R.string.arcore_required_text),
-            installArcore = stringResource(R.string.install_arcore),
             cameraPermissionRequired = stringResource(R.string.camera_permission_required),
             openSettings = stringResource(R.string.open_settings),
             targetCreationTitle = stringResource(R.string.target_creation_title),
@@ -300,9 +297,6 @@ data class AppStrings(
     )
     data class Ar(
         val depthUnsupported: String,
-        val arcoreRequiredTitle: String,
-        val arcoreRequiredText: String,
-        val installArcore: String,
         val cameraPermissionRequired: String,
         val openSettings: String,
         val targetCreationTitle: String,

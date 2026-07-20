@@ -305,11 +305,8 @@
     <string name="depth_unsupported">此設備不支援 Depth API。 \n在「設定」中切換到「畫布」模式。</string>
 
 
-    <string name="arcore_required_title">需要 ARCore</string>
 
-    <string name="arcore_required_text">該設備未安裝 ARCore 或不受支援。從 Play 商店安裝 ARCore 以使用 AR 功能。</string>
 
-    <string name="install_arcore">安裝ARCore</string>
 
 
     <string name="camera_permission_required">AR 模式需要相機權限。</string>

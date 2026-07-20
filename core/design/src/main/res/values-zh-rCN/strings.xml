@@ -306,11 +306,8 @@
 请在设置中切换到画布模式。</string>
 
 
-    <string name="arcore_required_title">需要 ARCore</string>
 
-    <string name="arcore_required_text">此设备尚未安装 ARCore 或不受支持。请从 Play 商店安装 ARCore 以使用 AR 功能。</string>
 
-    <string name="install_arcore">安装 ARCore</string>
 
 
     <string name="camera_permission_required">AR 模式需要相机权限。</string>
