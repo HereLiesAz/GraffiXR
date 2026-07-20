@@ -150,7 +150,14 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
                             clipData = android.content.ClipData.newRawUri(null, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(send, null))
+                        // createChooser wraps `send` in a new intent; the grant flag + ClipData don't
+                        // propagate to that wrapper, so the share sheet (a separate system process on
+                        // API 29+) can't read the URI to render its preview. Re-apply them here.
+                        val chooser = Intent.createChooser(send, null).apply {
+                            clipData = send.clipData
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(chooser)
                     } catch (t: Throwable) {
                         android.util.Log.w("Graffux", "Share failed", t)
                     }
