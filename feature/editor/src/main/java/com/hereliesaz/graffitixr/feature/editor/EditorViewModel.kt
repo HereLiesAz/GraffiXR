@@ -1323,6 +1323,18 @@ class EditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Sets the active layer's compositing mode directly to [mode] (from the blend-mode picker),
+     * as opposed to [onCycleBlendMode]'s step-through. Snapshots history, persists, and emits the
+     * co-op op so a spectator sees the change.
+     */
+    fun setBlendMode(mode: com.hereliesaz.graffitixr.common.model.BlendMode) {
+        pushHistory()
+        dispatch(EditorIntent.SetBlendMode(mode))
+        saveProject()
+        emitActiveLayerProps()
+    }
+
     override fun onLayerDuplicated(id: String) {
         val layer = _uiState.value.layers.find { it.id == id } ?: return
         val projectId = _uiState.value.projectId ?: return

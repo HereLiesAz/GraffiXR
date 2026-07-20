@@ -86,6 +86,8 @@ internal sealed interface EditorIntent {
     /** Sets the active brush color and closes the color picker. */
     data class SetActiveColor(val color: Color) : EditorIntent
     data class SetLayerWarp(val layerId: String, val mesh: List<Float>) : EditorIntent
+    /** Sets the active layer's compositing / blend mode (from the blend-mode picker). */
+    data class SetBlendMode(val mode: com.hereliesaz.graffitixr.common.model.BlendMode) : EditorIntent
     /** Replaces the vector shapes on [layerId] (recolour, resize, edit). */
     data class SetLayerShapes(val layerId: String, val shapes: List<com.hereliesaz.graffitixr.common.model.VectorShape>) : EditorIntent
     /** Applies a freshly-rasterized text bitmap and its params to [layerId]. */

@@ -27,6 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import com.hereliesaz.aznavrail.*
 import com.hereliesaz.aznavrail.model.*
+import com.hereliesaz.graffitixr.common.model.BlendMode
 import com.hereliesaz.graffitixr.common.model.EditorMode
 import com.hereliesaz.graffitixr.common.model.EditorPanel
 import com.hereliesaz.graffitixr.common.model.EditorUiState
@@ -35,9 +36,11 @@ import com.hereliesaz.graffitixr.common.model.Tool
 import com.hereliesaz.graffitixr.design.theme.AppStrings
 import com.hereliesaz.graffitixr.design.theme.Cyan
 import com.hereliesaz.graffitixr.design.theme.rememberAppStrings
+import com.hereliesaz.graffitixr.feature.editor.BlendModePicker
 import com.hereliesaz.graffitixr.feature.editor.DocumentSizeDialog
 import com.hereliesaz.graffitixr.feature.editor.EditorScreen
 import com.hereliesaz.graffitixr.feature.editor.EditorViewModel
+import com.hereliesaz.graffitixr.feature.editor.toModelBlendMode
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -100,6 +103,9 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
     // Artboard size picker visibility (opened from the rail's "Size" item).
     var showDocDialog by remember { mutableStateOf(false) }
 
+    // Blend-mode picker visibility (opened from the Design folder's "Blend" item).
+    var showBlendDialog by remember { mutableStateOf(false) }
+
     // Open a shared image (two-app interop) as a layer once, after the ViewModel exists.
     LaunchedEffect(sharedImageUri) {
         sharedImageUri?.let { vm.onAddLayer(it) }
@@ -140,6 +146,7 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
                 )
             },
             onDocumentSize = { showDocDialog = true },
+            onBlendMode = { showBlendDialog = true },
             onShare = {
                 // Interop hand-off: composite the design to a content:// Uri and offer it to any app
                 // (e.g. GraffitiXR to project in AR). No-op silently if there's nothing to share.
@@ -196,6 +203,18 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
                     onDismiss = { showDocDialog = false },
                 )
             }
+
+            if (showBlendDialog) {
+                val activeLayer = uiState.layers.find { it.id == uiState.activeLayerId }
+                BlendModePicker(
+                    current = activeLayer?.blendMode?.toModelBlendMode() ?: BlendMode.SrcOver,
+                    onSelect = { mode ->
+                        vm.setBlendMode(mode)
+                        showBlendDialog = false
+                    },
+                    onDismiss = { showBlendDialog = false },
+                )
+            }
         }
     }
 }
@@ -215,6 +234,7 @@ private fun AzNavHostScope.ConfigureRailItems(
     onOpenImage: () -> Unit,
     onShare: () -> Unit,
     onDocumentSize: () -> Unit,
+    onBlendMode: () -> Unit,
 ) {
     val navStrings = strings.nav
 
@@ -308,6 +328,9 @@ private fun AzNavHostScope.ConfigureRailItems(
         }
         azRailSubItem(id = "design.invert", hostId = "host.design", text = navStrings.invert, color = navItemColor, shape = AzButtonShape.NONE) {
             vm.onToggleInvert()
+        }
+        azRailSubItem(id = "design.blend", hostId = "host.design", text = "Blend", color = navItemColor, shape = AzButtonShape.NONE) {
+            onBlendMode()
         }
     }
     azRailSubItem(
