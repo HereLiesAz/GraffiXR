@@ -100,6 +100,7 @@ internal object EditorReducer {
         EditorIntent.DismissColorPicker -> state.copy(showColorPicker = false)
         is EditorIntent.SetActiveColor -> state.copy(activeColor = intent.color, showColorPicker = false)
         is EditorIntent.SetLayerWarp -> state.copy(layers = LayerListOps.mapLayer(state.layers, intent.layerId) { it.copy(warpMesh = intent.mesh) })
+        is EditorIntent.SetLayerShapes -> state.copy(layers = LayerListOps.mapLayer(state.layers, intent.layerId) { it.copy(shapes = intent.shapes) })
         is EditorIntent.RenderTextLayer -> state.copy(layers = LayerListOps.mapLayer(state.layers, intent.layerId) { it.copy(bitmap = intent.bitmap, textParams = intent.params) })
 
         is EditorIntent.AppendLayer -> state.copy(layers = state.layers + intent.layer)

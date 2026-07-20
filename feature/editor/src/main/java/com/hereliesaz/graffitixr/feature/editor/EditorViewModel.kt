@@ -1872,6 +1872,19 @@ class EditorViewModel @Inject constructor(
 
     override fun setActiveColor(color: Color) {
         dispatch(EditorIntent.SetActiveColor(color))
+        // If a vector layer is active, recolour its shapes: fill for rect/ellipse, stroke for lines.
+        val st = _uiState.value
+        val active = st.layers.find { it.id == st.activeLayerId }
+        if (active != null && active.shapes.isNotEmpty()) {
+            val argb = color.toArgb().toLong() and 0xFFFFFFFFL
+            val recoloured = active.shapes.map { s ->
+                if (s.kind == com.hereliesaz.graffitixr.common.model.ShapeKind.LINE) s.copy(strokeArgb = argb)
+                else s.copy(fillArgb = argb)
+            }
+            pushHistory()
+            dispatch(EditorIntent.SetLayerShapes(active.id, recoloured))
+            saveProject()
+        }
     }
 
     override fun adjustColorLightness(delta: Float) {
