@@ -14,6 +14,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -326,6 +328,17 @@ fun EditorScreen(
             strings = strings,
             isCapturingTarget = false
         )
+
+        // 4b. Empty-state hint — guide the user to add content when the document is blank.
+        if (uiState.layers.isEmpty() && !uiState.isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Tap the icon, then File → New or Open\nto start your first layer.",
+                    color = Color.White.copy(alpha = 0.55f),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
 
         // 5. Loading indicator.
         if (uiState.isLoading) {
