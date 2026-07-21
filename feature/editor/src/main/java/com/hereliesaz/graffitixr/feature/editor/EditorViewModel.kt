@@ -2621,16 +2621,19 @@ class EditorViewModel @Inject constructor(
      */
     fun installExtensionFromUri(uri: Uri) {
         viewModelScope.launch(dispatchers.io) {
-            val result = runCatching {
+            try {
                 val input = context.contentResolver.openInputStream(uri)
                     ?: error("Couldn't open that file")
-                input.use { extensionRepository.installFromStream(it, System.currentTimeMillis()) }
-            }
-            withContext(dispatchers.main) {
-                result.fold(
-                    onSuccess = { Toast.makeText(context, "Installed ${it.manifest.name}", Toast.LENGTH_SHORT).show() },
-                    onFailure = { Toast.makeText(context, "Couldn't install: ${it.message}", Toast.LENGTH_LONG).show() },
-                )
+                val installed = input.use { extensionRepository.installFromStream(it, System.currentTimeMillis()) }
+                withContext(dispatchers.main) {
+                    Toast.makeText(context, "Installed ${installed.manifest.name}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e   // never swallow cancellation — let the coroutine unwind cooperatively
+            } catch (e: Exception) {
+                withContext(dispatchers.main) {
+                    Toast.makeText(context, "Couldn't install: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
