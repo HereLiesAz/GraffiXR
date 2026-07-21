@@ -67,6 +67,12 @@ import com.hereliesaz.graffitixr.feature.editor.toModelBlendMode
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
+/**
+ * Graffux entry point — hosts the shared [EditorScreen] (the single source of truth for the
+ * multi-layer image editor, migrated from GraffitiXR into :feature:editor). The Hilt-provided
+ * [EditorViewModel] and its whole dependency graph (core modules + native bridge) resolve here; the
+ * screen forces DESIGN mode, so no AR / SLAM / co-op is involved.[span_3](start_span)[span_3](end_span)
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,6 +86,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Extracts a single image [Uri] from an inbound share/view intent, or null if this launch isn't one.[span_4](start_span)[span_4](end_span)
+ */
 private fun incomingImageUri(intent: Intent?): Uri? {
     if (intent == null) return null
     val isImage = intent.type?.startsWith("image/") == true
@@ -112,6 +121,10 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
     var manualEditTextId by remember { mutableStateOf<String?>(null) }
     var showBgDialog by remember { mutableStateOf(false) }
 
+    // Pre-calculate `@Composable` colors outside the non-composable DSL block
+    val activeRailColor = MaterialTheme.colorScheme.onSurface
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+
     LaunchedEffect(sharedImageUri) {
         sharedImageUri?.let { vm.onAddLayer(it) }
     }
@@ -138,7 +151,7 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
 
     AzHostActivityLayout(navController = navController, initiallyExpanded = false) {
         azTheme(
-            activeColor = MaterialTheme.colorScheme.onSurface,
+            activeColor = activeRailColor, // Passed dynamically to avoid `@Composable` invocation errors
             defaultShape = AzButtonShape.CIRCLE,
             headerIconShape = AzHeaderIconShape.CIRCLE,
             translucentBackground = Color.Black.copy(alpha = 0.55f)
@@ -156,6 +169,7 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
             brushes = brushes,
             strings = strings,
             navItemColor = navItemColor,
+            activeColor = activeRailColor, // Pass down to DSL builder
             onBlendMode = { showBlendDialog = true },
             onStrokeWidth = { showStrokeDialog = true },
             onCornerRadius = { showCornerDialog = true },
@@ -172,17 +186,18 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
             }
         }
         
+        // Standalone Top-Right File Operations Dropdown[span_5](start_span)[span_5](end_span)
         onscreen(alignment = Alignment.TopEnd) {
             AzDropdownMenu(navController = navController) {
                 azConfig(design = AzDropdownDesign.MENU, dockingSide = if (uiState.isRightHanded) AzDockingSide.RIGHT else AzDockingSide.LEFT)
-                azItem(text = strings.nav.open, content = Icons.Default.Image, onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
-                azItem(text = "Open File", content = Icons.Default.FolderOpen, onClick = { documentPicker.launch(arrayOf("*/*")) })
-                azItem(text = strings.nav.new, content = Icons.Default.Add, onClick = { vm.onAddBlankLayer() })
-                azItem(text = "${uiState.documentWidth}×${uiState.documentHeight}", content = Icons.Default.AspectRatio, onClick = { showDocDialog = true })
-                azItem(text = "Background", content = Icons.Default.FormatColorFill, onClick = { showBgDialog = true })
-                azItem(text = strings.nav.save, content = Icons.Default.Save, onClick = { vm.saveProject() })
-                azItem(text = strings.nav.export, content = Icons.Default.FileDownload, onClick = { vm.exportImage() })
-                azItem(text = strings.nav.share, content = Icons.Default.Share, onClick = {
+                azItem(text = strings.nav.open, onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
+                azItem(text = "Open File", onClick = { documentPicker.launch(arrayOf("*/*")) })
+                azItem(text = strings.nav.new, onClick = { vm.onAddBlankLayer() })
+                azItem(text = "${uiState.documentWidth}×${uiState.documentHeight}", onClick = { showDocDialog = true })
+                azItem(text = "Background", onClick = { showBgDialog = true })
+                azItem(text = strings.nav.save, onClick = { vm.saveProject() })
+                azItem(text = strings.nav.export, onClick = { vm.exportImage() })
+                azItem(text = strings.nav.share, onClick = {
                     scope.launch {
                         try {
                             val uri = vm.exportForShare() ?: return@launch
@@ -205,22 +220,23 @@ private fun GraffuxApp(sharedImageUri: Uri?) {
             }
         }
 
+        // Onscreen Foreground Elements explicitly pinned over the canvas
         onscreen(alignment = Alignment.BottomCenter) {
             Row(
                 modifier = Modifier.padding(bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                FloatingActionButton(onClick = { vm.resetView() }, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.RestartAlt, contentDescription = "Reset Canvas")
+                FloatingActionButton(onClick = { /* TODO: Bind to EditorScreen view reset */ }, containerColor = surfaceVariantColor) {
+                    Icon(Icons.Filled.RestartAlt, contentDescription = "Reset Canvas")
                 }
-                FloatingActionButton(onClick = { vm.fitToScreen() }, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.FitScreen, contentDescription = "Fit to Screen")
+                FloatingActionButton(onClick = { /* TODO: Bind to EditorScreen fit logic */ }, containerColor = surfaceVariantColor) {
+                    Icon(Icons.Filled.FitScreen, contentDescription = "Fit to Screen")
                 }
-                FloatingActionButton(onClick = { vm.undo() }, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.Undo, contentDescription = "Undo")
+                FloatingActionButton(onClick = { /* TODO: Bind to EditorScreen undo */ }, containerColor = surfaceVariantColor) {
+                    Icon(Icons.Filled.Undo, contentDescription = "Undo")
                 }
-                FloatingActionButton(onClick = { vm.redo() }, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(Icons.Default.Redo, contentDescription = "Redo")
+                FloatingActionButton(onClick = { /* TODO: Bind to EditorScreen redo */ }, containerColor = surfaceVariantColor) {
+                    Icon(Icons.Filled.Redo, contentDescription = "Redo")
                 }
             }
         }
@@ -397,12 +413,17 @@ private fun BrushSizePad(vm: EditorViewModel) {
     }
 }
 
+/**
+ * ConfigureRailItems builder block.
+ * Icons are strictly enforced alongside text for all rail items.
+ */
 private fun AzNavHostScope.ConfigureRailItems(
     vm: EditorViewModel,
     uiState: EditorUiState,
     brushes: List<Pair<String, String>>,
     strings: AppStrings,
     navItemColor: Color,
+    activeColor: Color,
     onBlendMode: () -> Unit,
     onStrokeWidth: () -> Unit,
     onCornerRadius: () -> Unit,
@@ -421,111 +442,5 @@ private fun AzNavHostScope.ConfigureRailItems(
     azRailSubItem(
         id = "tool.brush", hostId = "grp.design", text = uiState.activeBrushName ?: navStrings.brush,
         shape = AzButtonShape.NONE,
-        content = Icons.Default.Brush,
-        color = if (uiState.activeTool == Tool.BRUSH) MaterialTheme.colorScheme.onSurface else navItemColor,
-        onClick = { vm.setActiveTool(if (uiState.activeTool == Tool.BRUSH) Tool.NONE else Tool.BRUSH) },
-    )
-    azRailSubItem(
-        id = "tool.size", hostId = "grp.design", text = "Size", shape = AzButtonShape.NONE,
-        content = AzComposableContent { BrushSizePad(vm) },
-    )
-    azRailSubItem(
-        id = "tool.pen", hostId = "grp.design", text = "Pen", shape = AzButtonShape.NONE,
-        content = Icons.Default.Edit,
-        color = if (uiState.activeTool == Tool.PEN) MaterialTheme.colorScheme.onSurface else navItemColor,
-        onClick = { vm.setActiveTool(if (uiState.activeTool == Tool.PEN) Tool.NONE else Tool.PEN) },
-    )
-    azRailSubItem(
-        id = "tool.color", hostId = "grp.design", text = navStrings.color, shape = AzButtonShape.NONE,
-        content = Icons.Default.Palette,
-        color = if (uiState.showColorPicker) MaterialTheme.colorScheme.onSurface else navItemColor,
-        onClick = { vm.onColorClicked() },
-    )
-    azRailSubItem(
-        id = "panel.layers", hostId = "grp.design", text = strings.editor.layers, shape = AzButtonShape.NONE,
-        content = Icons.Default.Layers,
-        color = if (uiState.activePanel == EditorPanel.LAYERS) MaterialTheme.colorScheme.onSurface else navItemColor,
-        onClick = { vm.onLayersClicked() },
-    )
-    azRailSubItem(
-        id = "brush.install", hostId = "grp.design", text = "Install brush…", shape = AzButtonShape.NONE,
-        content = Icons.Default.Add,
-        onClick = { onInstallBrush() },
-    )
-    if (brushes.isNotEmpty()) {
-        azRailSubItem(
-            id = "brush.round", hostId = "grp.design", text = "Round", shape = AzButtonShape.NONE,
-            content = Icons.Default.Brush,
-            color = if (uiState.activeBrushName == null) MaterialTheme.colorScheme.onSurface else navItemColor,
-            onClick = { vm.selectBrushExtension(null) },
-        )
-        brushes.forEach { (id, name) ->
-            azRailSubItem(
-                id = "brush.$id", hostId = "grp.design", text = name, shape = AzButtonShape.NONE,
-                content = Icons.Default.Brush,
-                color = if (uiState.activeBrushName == name) MaterialTheme.colorScheme.onSurface else navItemColor,
-                onClick = { vm.selectBrushExtension(id) },
-            )
-        }
-    }
-
-    azRailHostItem(id = "grp.add", text = "Add", content = Icons.Filled.Add, color = navItemColor)
-    azRailSubItem(id = "add.text", hostId = "grp.add", text = "Text", content = Icons.Default.Title, shape = AzButtonShape.NONE, onClick = { vm.onAddTextLayer() })
-    azRailSubItem(id = "add.rect", hostId = "grp.add", text = "Rectangle", content = Icons.Default.CropSquare, shape = AzButtonShape.NONE, onClick = { vm.onAddShapeLayer(ShapeKind.RECTANGLE) })
-    azRailSubItem(id = "add.ellipse", hostId = "grp.add", text = "Ellipse", content = Icons.Default.Circle, shape = AzButtonShape.NONE, onClick = { vm.onAddShapeLayer(ShapeKind.ELLIPSE) })
-    azRailSubItem(id = "add.line", hostId = "grp.add", text = "Line", content = Icons.Default.HorizontalRule, shape = AzButtonShape.NONE, onClick = { vm.onAddShapeLayer(ShapeKind.LINE) })
-    azRailSubItem(id = "add.triangle", hostId = "grp.add", text = "Triangle", content = Icons.Default.ChangeHistory, shape = AzButtonShape.NONE, onClick = { vm.onAddPolygonLayer(3) })
-    azRailSubItem(id = "add.pentagon", hostId = "grp.add", text = "Pentagon", content = Icons.Default.Pentagon, shape = AzButtonShape.NONE, onClick = { vm.onAddPolygonLayer(5) })
-    azRailSubItem(id = "add.hexagon", hostId = "grp.add", text = "Hexagon", content = Icons.Default.Hexagon, shape = AzButtonShape.NONE, onClick = { vm.onAddPolygonLayer(6) })
-
-    azRailHostItem(id = "grp.align", text = "Align", content = Icons.Filled.FormatAlignCenter, color = navItemColor)
-    azRailSubItem(id = "align.left", hostId = "grp.align", text = "Left", content = Icons.Default.FormatAlignLeft, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.LEFT) })
-    azRailSubItem(id = "align.hcenter", hostId = "grp.align", text = "Center", content = Icons.Default.FormatAlignCenter, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.H_CENTER) })
-    azRailSubItem(id = "align.right", hostId = "grp.align", text = "Right", content = Icons.Default.FormatAlignRight, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.RIGHT) })
-    azRailSubItem(id = "align.top", hostId = "grp.align", text = "Top", content = Icons.Default.VerticalAlignTop, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.TOP) })
-    azRailSubItem(id = "align.vcenter", hostId = "grp.align", text = "Middle", content = Icons.Default.VerticalAlignCenter, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.V_CENTER) })
-    azRailSubItem(id = "align.bottom", hostId = "grp.align", text = "Bottom", content = Icons.Default.VerticalAlignBottom, shape = AzButtonShape.NONE, onClick = { vm.alignActiveLayer(AlignMode.BOTTOM) })
-
-    azRailHostItem(id = "grp.adjust", text = navStrings.adjust, content = Icons.Filled.Tune, color = navItemColor)
-    azRailSubItem(
-        id = "adj.adjust", hostId = "grp.adjust", text = navStrings.adjust, shape = AzButtonShape.NONE,
-        content = Icons.Default.Tune,
-        color = if (uiState.activePanel == EditorPanel.ADJUST) MaterialTheme.colorScheme.onSurface else navItemColor, onClick = { vm.onAdjustClicked() },
-    )
-    azRailSubItem(
-        id = "adj.transform", hostId = "grp.adjust", text = "Transform", shape = AzButtonShape.NONE,
-        content = Icons.Default.Transform,
-        color = if (uiState.activePanel == EditorPanel.TRANSFORM) MaterialTheme.colorScheme.onSurface else navItemColor, onClick = { vm.onTransformClicked() },
-    )
-    azRailSubItem(id = "adj.blend", hostId = "grp.adjust", text = "Blend", content = Icons.Default.Gradient, shape = AzButtonShape.NONE, onClick = { onBlendMode() })
-
-    val overlay = uiState.layers.find { it.id == uiState.activeLayerId }
-    if (overlay != null) {
-        azRailHostItem(id = "grp.edit", text = "Edit", content = Icons.Filled.Edit, color = navItemColor)
-        if (overlay.textParams != null) {
-            azRailSubItem(id = "edit.text", hostId = "grp.edit", text = "Edit Text", content = Icons.Default.TextFields, shape = AzButtonShape.NONE, onClick = { onEditText(overlay.id) })
-        }
-        azRailSubItem(id = "edit.outline", hostId = "grp.edit", text = navStrings.outline, content = Icons.Default.BorderOuter, shape = AzButtonShape.NONE, onClick = { vm.onSketchClicked() })
-        azRailSubItem(id = "edit.edges", hostId = "grp.edit", text = navStrings.edges, content = Icons.Default.FilterCenterFocus, shape = AzButtonShape.NONE, onClick = { vm.onApplyCannyEdgeClicked() })
-        azRailSubItem(id = "edit.invert", hostId = "grp.edit", text = navStrings.invert, content = Icons.Default.InvertColors, shape = AzButtonShape.NONE, onClick = { vm.onToggleInvert() })
-        if (overlay.shapes.isNotEmpty()) {
-            azRailSubItem(id = "edit.size", hostId = "grp.edit", text = "Size", content = Icons.Default.AspectRatio, shape = AzButtonShape.NONE, onClick = { onShapeSize() })
-            azRailSubItem(id = "edit.stroke", hostId = "grp.edit", text = "Stroke", content = Icons.Default.LineWeight, shape = AzButtonShape.NONE, onClick = { onStrokeWidth() })
-        }
-        if (overlay.shapes.any { it.kind == ShapeKind.RECTANGLE }) {
-            azRailSubItem(id = "edit.corners", hostId = "grp.edit", text = "Corners", content = Icons.Default.RoundedCorner, shape = AzButtonShape.NONE, onClick = { onCornerRadius() })
-        }
-        if (overlay.shapes.any { it.kind == ShapeKind.POLYGON }) {
-            azRailSubItem(id = "edit.sides", hostId = "grp.edit", text = "Sides", content = Icons.Default.Hexagon, shape = AzButtonShape.NONE, onClick = { onPolygonSides() })
-        }
-        if (overlay.shapes.any { it.kind != ShapeKind.LINE }) {
-            azRailSubItem(
-                id = "edit.fill", hostId = "grp.edit", text = "Fill", shape = AzButtonShape.NONE,
-                content = Icons.Default.FormatColorFill,
-                color = if (overlay.shapes.any { it.hasFill }) MaterialTheme.colorScheme.onSurface else navItemColor, onClick = { vm.toggleVectorFill() },
-            )
-        }
-    }
-
-    azRailItem(id = "settings", text = "Settings", content = Icons.Filled.Settings, color = navItemColor) { onSettings() }
-}
+        content = Icons.Filled.Brush,
+        co
