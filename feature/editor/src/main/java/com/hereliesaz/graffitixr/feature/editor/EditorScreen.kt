@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -267,8 +268,11 @@ fun EditorScreen(
 
         // 3. Brush touch layer — full-screen, in true screen coordinates (no graphicsLayer here; the
         // layer render already applies the transform, and EditorViewModel.onStrokePoint maps screen
-        // space back to bitmap pixels). Active only when a tool is selected on an unlocked layer.
-        if (activeLayer != null && !activeLayerLocked && uiState.activeTool != Tool.NONE) {
+        // space back to bitmap pixels). Active only when a RASTER tool is selected on an unlocked
+        // layer — the vector PEN has its own capture layer below.
+        if (activeLayer != null && !activeLayerLocked &&
+            uiState.activeTool != Tool.NONE && uiState.activeTool != Tool.PEN
+        ) {
             DrawingCanvas(
                 activeTool = uiState.activeTool,
                 brushSize = uiState.brushSize,
@@ -278,6 +282,18 @@ fun EditorScreen(
                 onStrokeStart = { offset, size -> vm.onStrokeStart(offset, size) },
                 onStrokePoint = { offset -> vm.onStrokePoint(offset) },
                 onStrokeEnd = { vm.onStrokeEnd() }
+            )
+        }
+
+        // 3b. Pen (vector) capture layer — a freeform drag traces a live poly-line that is committed
+        // as an open PATH vector layer on release. Needs no active layer (it makes a new one). Runs
+        // in screen space; onCommitPenPath maps the points back through the camera.
+        if (uiState.activeTool == Tool.PEN) {
+            PenCanvas(
+                color = uiState.activeColor,
+                strokeWidthPx = uiState.brushSize,
+                onCommit = { pts, cw, ch -> vm.onCommitPenPath(pts, cw, ch) },
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
@@ -407,6 +423,49 @@ private fun SelectionHandles(
         val tr = corners[1]
         drawCircle(accent, radius = r, center = tr, style = Stroke(width = 2.dp.toPx()))
         drawCircle(accent, radius = r * 0.35f, center = tr)
+    }
+}
+
+/**
+ * Freeform vector pen capture. A single-finger drag traces a poly-line, previewed live in the brush
+ * colour; on release the traced screen points are handed to [onCommit] (with the canvas size) to be
+ * turned into an open PATH vector layer. Full-screen and in screen space — the camera mapping happens
+ * in the view-model. A stroke of fewer than two points is ignored.
+ */
+@Composable
+private fun PenCanvas(
+    color: Color,
+    strokeWidthPx: Float,
+    onCommit: (points: List<Offset>, canvasWidth: Float, canvasHeight: Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val points = remember { mutableStateListOf<Offset>() }
+    Canvas(
+        modifier = modifier.pointerInput(Unit) {
+            awaitEachGesture {
+                points.clear()
+                val down = awaitFirstDown(requireUnconsumed = false)
+                points.add(down.position)
+                down.consume()
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull() ?: break
+                    if (!change.pressed) break
+                    points.add(change.position)
+                    change.consume()
+                }
+                if (points.size >= 2) onCommit(points.toList(), size.width.toFloat(), size.height.toFloat())
+                points.clear()
+            }
+        },
+    ) {
+        if (points.size >= 2) {
+            val path = Path().apply {
+                moveTo(points[0].x, points[0].y)
+                for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
+            }
+            drawPath(path, color, style = Stroke(width = strokeWidthPx))
+        }
     }
 }
 

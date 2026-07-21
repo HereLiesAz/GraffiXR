@@ -5,7 +5,9 @@ package com.hereliesaz.graffitixr.common.model
  * Editor tool selection. NONE is the transform/move baseline (no active brush).
  */
 enum class Tool {
-    NONE, BRUSH, ERASER, BLUR, HEAL, BURN, DODGE, LIQUIFY, COLOR
+    NONE, BRUSH, ERASER, BLUR, HEAL, BURN, DODGE, LIQUIFY, COLOR,
+    /** Vector pen: a freeform drag traces an open PATH vector shape on a new layer. */
+    PEN
 }
 
 enum class ArScanMode {

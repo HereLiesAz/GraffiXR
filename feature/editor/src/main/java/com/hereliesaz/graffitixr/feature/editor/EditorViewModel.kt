@@ -766,6 +766,58 @@ class EditorViewModel @Inject constructor(
         saveProject()
     }
 
+    /**
+     * Commits a freeform pen stroke as a new open vector PATH layer. [screenPoints] are the traced
+     * points in screen pixels on a canvas of [canvasWidth]×[canvasHeight]; they're mapped back through
+     * the camera (undo pan/zoom/rotation) into world space so the path lands exactly where drawn, then
+     * re-centred on the layer origin with the layer offset placing it. Stroke colour/width come from
+     * the current brush colour/size. No-op for a degenerate (<2 point) stroke.
+     */
+    fun onCommitPenPath(screenPoints: List<Offset>, canvasWidth: Float, canvasHeight: Float) {
+        if (screenPoints.size < 2 || _uiState.value.projectId == null) return
+        val st = _uiState.value
+        val cx = canvasWidth / 2f
+        val cy = canvasHeight / 2f
+        // screen → world: R(-rot) · (screen - offset) / zoom
+        val rad = Math.toRadians(-st.viewportRotation.toDouble())
+        val cos = kotlin.math.cos(rad)
+        val sin = kotlin.math.sin(rad)
+        val world = ArrayList<Float>(screenPoints.size * 2)
+        var minX = Float.POSITIVE_INFINITY; var minY = Float.POSITIVE_INFINITY
+        var maxX = Float.NEGATIVE_INFINITY; var maxY = Float.NEGATIVE_INFINITY
+        for (p in screenPoints) {
+            val ux = (p.x - st.viewportOffset.x) / st.viewportZoom
+            val uy = (p.y - st.viewportOffset.y) / st.viewportZoom
+            val wx = (ux * cos - uy * sin).toFloat()
+            val wy = (ux * sin + uy * cos).toFloat()
+            world.add(wx); world.add(wy)
+            if (wx < minX) minX = wx
+            if (wx > maxX) maxX = wx
+            if (wy < minY) minY = wy
+            if (wy > maxY) maxY = wy
+        }
+        val shape = VectorPaths.pathShape(
+            points = world,
+            closed = false,
+            strokeArgb = st.activeColor.toArgb().toLong() and 0xFFFFFFFFL,
+            strokeWidth = st.brushSize.coerceAtLeast(1f),
+        ) ?: return
+        pushHistory()
+        val count = _uiState.value.layers.count { it.shapes.isNotEmpty() }
+        val worldCenter = Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
+        val newLayer = Layer(
+            id = UUID.randomUUID().toString(),
+            name = "Path ${count + 1}",
+            shapes = listOf(shape),
+            offset = Offset(worldCenter.x - cx, worldCenter.y - cy),
+        )
+        dispatch(EditorIntent.AddLayer(newLayer))
+        // AddLayer resets the tool to NONE; keep the pen active so strokes can be drawn continuously.
+        dispatch(EditorIntent.SetActiveTool(Tool.PEN))
+        opEmitter.emit(Op.LayerAdd(newLayer))
+        saveProject()
+    }
+
     fun setBackgroundImage(uri: Uri) {
         val projectId = _uiState.value.projectId ?: return
         viewModelScope.launch(dispatchers.io) {
