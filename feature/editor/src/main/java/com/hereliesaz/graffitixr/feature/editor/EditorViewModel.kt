@@ -835,8 +835,10 @@ class EditorViewModel @Inject constructor(
             if (wy < minY) minY = wy
             if (wy > maxY) maxY = wy
         }
+        // Simplify the raw per-touch capture into a tidy path (tolerance ~2 screen px in world units).
+        val simplified = PathSimplify.rdp(world, 2f / st.viewportZoom.coerceAtLeast(0.01f))
         val shape = VectorPaths.pathShape(
-            points = world,
+            points = simplified,
             closed = false,
             strokeArgb = st.activeColor.toArgb().toLong() and 0xFFFFFFFFL,
             strokeWidth = st.brushSize.coerceAtLeast(1f),
