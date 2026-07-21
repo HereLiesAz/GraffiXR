@@ -86,7 +86,7 @@ class ProjectManagerTest {
         val path = manager.getMapPath(mockContext, "map_project")
         val expectedFile = File(tempFilesDir, "projects/map_project/map.bin")
         assertEquals(expectedFile.absolutePath, path)
-        assertTrue(expectedFile.parentFile.exists())
+        assertTrue(expectedFile.parentFile!!.exists())
     }
 
     @Test

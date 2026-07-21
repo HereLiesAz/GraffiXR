@@ -14,8 +14,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -147,7 +149,7 @@ fun EditorScreen(
                             )
                         }
                         // 1. Layer stack render.
-                        val layerTree = remember(uiState.layers) { com.hereliesaz.graffitixr.common.util.buildLayerTree(uiState.layers) }
+                        val layerTree = remember(uiState.layers) { buildLayerTree(uiState.layers) }
                         layerTree.forEach { node ->
                             LayerStackNode(node, uiState)
                         }
