@@ -972,7 +972,11 @@ class EditorViewModel @Inject constructor(
                     val metrics = context.resources.displayMetrics
                     val w = metrics.widthPixels.takeIf { it > 0 } ?: 1080
                     val h = metrics.heightPixels.takeIf { it > 0 } ?: 1920
-                    val composite = exportManager.compositeLayers(_uiState.value.layers, w, h)
+                    // Thumbnail represents the document (artboard), not the whole screen.
+                    val composite = exportManager.compositeToDocument(
+                        _uiState.value.layers, w, h,
+                        _uiState.value.documentWidth, _uiState.value.documentHeight,
+                    )
                     // Downscale to a small preview so the file stays tiny and decodes fast.
                     val maxDim = 512
                     val longest = maxOf(composite.width, composite.height).coerceAtLeast(1)
@@ -1060,10 +1064,12 @@ class EditorViewModel @Inject constructor(
                     // Trace previously baked canvasBackground colour into the export. Spec is
                     // "overlay layers only, no background", so use TRANSPARENT unconditionally —
                     // the PNG writer (saveBitmapToGallery uses CompressFormat.PNG) preserves alpha.
-                    exportManager.compositeLayers(
+                    exportManager.compositeToDocument(
                         _uiState.value.layers,
                         metrics.widthPixels,
                         metrics.heightPixels,
+                        _uiState.value.documentWidth,
+                        _uiState.value.documentHeight,
                         backgroundBitmap = bgBmp,
                         backgroundColor = android.graphics.Color.TRANSPARENT,
                     )
@@ -1099,10 +1105,12 @@ class EditorViewModel @Inject constructor(
         val layers = _uiState.value.layers
         if (layers.isEmpty()) return@withContext null
         val metrics = context.resources.displayMetrics
-        val composite = exportManager.compositeLayers(
+        val composite = exportManager.compositeToDocument(
             layers,
             metrics.widthPixels,
             metrics.heightPixels,
+            _uiState.value.documentWidth,
+            _uiState.value.documentHeight,
             backgroundColor = android.graphics.Color.TRANSPARENT,
         )
         val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }

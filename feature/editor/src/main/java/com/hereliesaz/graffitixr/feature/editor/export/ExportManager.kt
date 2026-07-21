@@ -13,6 +13,31 @@ import com.hereliesaz.graffitixr.common.model.ShapeKind
 import com.hereliesaz.graffitixr.common.model.VectorShape
 import com.hereliesaz.graffitixr.feature.editor.createColorMatrix
 import javax.inject.Inject
+import kotlin.math.roundToInt
+
+/**
+ * The artboard (document) rectangle within a [canvasW]×[canvasH] world container — the document's
+ * aspect ratio fit and centred, exactly as the on-screen `ArtboardFrame` draws it. Returns
+ * `[left, top, width, height]` in canvas pixels. Pure (no Android), so it's unit-testable and shared
+ * by the exact-pixel export. Degenerate inputs fall back to the whole canvas.
+ */
+fun artboardRect(canvasW: Int, canvasH: Int, docW: Int, docH: Int): FloatArray {
+    if (canvasW <= 0 || canvasH <= 0 || docW <= 0 || docH <= 0) {
+        return floatArrayOf(0f, 0f, canvasW.toFloat(), canvasH.toFloat())
+    }
+    val docAspect = docW.toFloat() / docH.toFloat()
+    val canvasAspect = canvasW.toFloat() / canvasH.toFloat()
+    val w: Float
+    val h: Float
+    if (docAspect > canvasAspect) {
+        w = canvasW.toFloat()
+        h = w / docAspect
+    } else {
+        h = canvasH.toFloat()
+        w = h * docAspect
+    }
+    return floatArrayOf((canvasW - w) / 2f, (canvasH - h) / 2f, w, h)
+}
 
 /**
  * Handles compositing and exporting of project layers.
@@ -81,6 +106,37 @@ class ExportManager @Inject constructor() {
             }
         }
         return result
+    }
+
+    /**
+     * Composites the [layers] and returns just the **artboard** at the document's exact pixel size
+     * ([docW]×[docH]) — what "Export" should produce, rather than the whole screen. Layers are
+     * composited in their [canvasW]×[canvasH] world space (where their offsets/scales live), then the
+     * centred artboard rect is cropped out and scaled to the document dimensions. Camera-independent
+     * (pan/zoom/rotation are view-only and never enter the composite).
+     */
+    fun compositeToDocument(
+        layers: List<Layer>,
+        canvasW: Int,
+        canvasH: Int,
+        docW: Int,
+        docH: Int,
+        backgroundBitmap: Bitmap? = null,
+        backgroundColor: Int = android.graphics.Color.TRANSPARENT,
+    ): Bitmap {
+        val full = compositeLayers(layers, canvasW, canvasH, backgroundBitmap, backgroundColor)
+        if (docW <= 0 || docH <= 0) return full
+        val rect = artboardRect(canvasW, canvasH, docW, docH)
+        val left = rect[0].roundToInt().coerceIn(0, (full.width - 1).coerceAtLeast(0))
+        val top = rect[1].roundToInt().coerceIn(0, (full.height - 1).coerceAtLeast(0))
+        val cw = rect[2].roundToInt().coerceIn(1, full.width - left)
+        val ch = rect[3].roundToInt().coerceIn(1, full.height - top)
+        val cropped = Bitmap.createBitmap(full, left, top, cw, ch)
+        return if (cropped.width == docW && cropped.height == docH) {
+            cropped
+        } else {
+            Bitmap.createScaledBitmap(cropped, docW, docH, true)
+        }
     }
 
     /**
