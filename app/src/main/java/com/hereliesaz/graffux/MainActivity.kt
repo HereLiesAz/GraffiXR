@@ -439,6 +439,16 @@ private fun AzNavHostScope.ConfigureRailItems(
     ) {
         vm.setActiveTool(Tool.BRUSH)
     }
+    // Vector pen — freeform drag draws an editable PATH vector layer.
+    azRailSubItem(
+        id = "design.pen",
+        hostId = "host.design",
+        text = "Pen",
+        color = if (uiState.activeTool == Tool.PEN) Cyan else navItemColor,
+        shape = AzButtonShape.NONE
+    ) {
+        vm.setActiveTool(Tool.PEN)
+    }
     azRailSubItem(
         id = "design.colour",
         hostId = "host.design",
