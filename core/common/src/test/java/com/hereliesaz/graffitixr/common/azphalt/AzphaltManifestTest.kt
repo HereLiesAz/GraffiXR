@@ -113,6 +113,84 @@ class AzphaltManifestTest {
     }
 
     @Test
+    fun `parses the newer model asset types and flags them as models`() {
+        val m = parseManifest(
+            """
+            {
+              "azphalt": "0.1", "id": "com.ai.bundle", "name": "Bundles", "version": "1.0.0",
+              "kind": "asset", "license": "MIT", "compat": ">=0.1",
+              "assets": [
+                { "type": "model",       "path": "models/generic.bin",  "role": "depth" },
+                { "type": "task",        "path": "models/task/",        "role": "detection" },
+                { "type": "vosk-bundle", "path": "models/vosk/",        "role": "asr" }
+              ],
+              "files": {}
+            }
+            """.trimIndent(),
+        )
+        assertEquals(AssetType.MODEL, m.assets[0].type)
+        assertEquals(AssetType.TASK, m.assets[1].type)
+        assertEquals(AssetType.VOSK_BUNDLE, m.assets[2].type)
+        assertTrue(m.assets.all { it.type.isModel })
+    }
+
+    @Test
+    fun `maturity defaults to general and reads mature`() {
+        val bare = parseManifest(
+            """{ "azphalt":"0.1","id":"x.y","name":"N","version":"1.0.0","kind":"asset",
+                "license":"MIT","compat":">=0.1","files":{} }""".trimIndent(),
+        )
+        assertEquals(Maturity.GENERAL, bare.maturity)
+        val mature = parseManifest(
+            """{ "azphalt":"0.1","id":"x.y","name":"N","version":"1.0.0","kind":"asset",
+                "license":"MIT","compat":">=0.1","maturity":"mature","files":{} }""".trimIndent(),
+        )
+        assertEquals(Maturity.MATURE, mature.maturity)
+        // A malformed/newer maturity value degrades to the documented default rather than throwing.
+        val weird = parseManifest(
+            """{ "azphalt":"0.1","id":"x.y","name":"N","version":"1.0.0","kind":"asset",
+                "license":"MIT","compat":">=0.1","maturity":"nsfw-plus","files":{} }""".trimIndent(),
+        )
+        assertEquals(Maturity.GENERAL, weird.maturity)
+    }
+
+    @Test
+    fun `parses contentRights and physical scale on an asset`() {
+        val m = parseManifest(
+            """
+            {
+              "azphalt":"0.1","id":"com.paper.pack","name":"Papers","version":"1.0.0",
+              "kind":"asset","license":"CC-BY-4.0","compat":">=0.1",
+              "assets":[{
+                "type":"pattern","path":"assets/kraft.png",
+                "contentRights":{ "attribution":"Photos by Az","attributionRequired":true,"commercialUse":true },
+                "physical":{ "width":210,"height":297,"unit":"mm","dpi":300,"tileWidth":50,"tileHeight":50 }
+              }],
+              "files":{}
+            }
+            """.trimIndent(),
+        )
+        val asset = m.assets.single()
+        assertEquals("Photos by Az", asset.contentRights?.attribution)
+        assertEquals(true, asset.contentRights?.attributionRequired)
+        assertEquals(true, asset.contentRights?.commercialUse)
+        assertEquals(210f, asset.physical?.width)
+        assertEquals("mm", asset.physical?.unit)
+        assertEquals(300f, asset.physical?.dpi)
+        assertEquals(50f, asset.physical?.tileWidth)
+    }
+
+    @Test
+    fun `assets without contentRights or physical leave them null`() {
+        val m = parseManifest(
+            """{ "azphalt":"0.1","id":"x.y","name":"N","version":"1.0.0","kind":"asset",
+                "license":"MIT","compat":">=0.1","assets":[{"type":"lut","path":"g.cube"}],"files":{} }""".trimIndent(),
+        )
+        assertNull(m.assets.single().contentRights)
+        assertNull(m.assets.single().physical)
+    }
+
+    @Test
     fun `unrecognized asset type parses as UNKNOWN instead of throwing`() {
         // A type newer than this build knows about must not break the parse.
         val m = parseManifest(

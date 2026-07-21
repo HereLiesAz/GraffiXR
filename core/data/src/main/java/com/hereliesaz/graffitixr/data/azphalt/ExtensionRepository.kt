@@ -2,6 +2,7 @@ package com.hereliesaz.graffitixr.data.azphalt
 
 import android.content.Context
 import com.hereliesaz.graffitixr.common.azphalt.AssetType
+import com.hereliesaz.graffitixr.common.azphalt.AzphaltBrush
 import com.hereliesaz.graffitixr.common.azphalt.AzpSignatures
 import com.hereliesaz.graffitixr.common.azphalt.CubeLut
 import com.hereliesaz.graffitixr.common.azphalt.LutInputTransfer
@@ -165,6 +166,30 @@ class ExtensionRepository @Inject constructor(
     /** A LUT asset this host can actually apply: standalone (not code-dependent) and bundled (has a path). */
     private fun isUsableLut(asset: com.hereliesaz.graffitixr.common.azphalt.AssetContribution): Boolean =
         asset.type == AssetType.LUT && asset.standalone && asset.path.isNotBlank()
+
+    /**
+     * Installed brush asset extensions the editor can paint with. As with [installedLuts], only assets
+     * an asset host may use count: `standalone != false` (a code-dependent brush in a mixed package is
+     * skipped, per spec § Mixed-package asset independence). A brush's stamp is optional — a params-only
+     * round tip is still usable — so, unlike a LUT, a blank `path` does not disqualify it.
+     */
+    fun installedBrushes(): List<InstalledExtension> =
+        _installed.value.filter { ext -> ext.manifest.assets.any(::isUsableBrush) }
+
+    /**
+     * Parse the first usable brush of an installed extension into a normalized [AzphaltBrush] (the
+     * declarative stamp + dynamics the editor renders), or null if it has none. The brush's name comes
+     * from the manifest; its behaviour from the asset's `params` via [AzphaltBrush.fromParams].
+     */
+    fun loadBrush(id: String): AzphaltBrush? {
+        val ext = _installed.value.find { it.id == id } ?: return null
+        val asset = ext.manifest.assets.firstOrNull(::isUsableBrush) ?: return null
+        return AzphaltBrush.fromParams(ext.manifest.name, asset.params)
+    }
+
+    /** A brush asset this host can paint with: standalone (not code-dependent). Stamp path is optional. */
+    private fun isUsableBrush(asset: com.hereliesaz.graffitixr.common.azphalt.AssetContribution): Boolean =
+        asset.type == AssetType.BRUSH && asset.standalone
 
     private fun openSource(source: String): InputStream = when {
         source.startsWith("asset:") -> context.assets.open(source.removePrefix("asset:"))

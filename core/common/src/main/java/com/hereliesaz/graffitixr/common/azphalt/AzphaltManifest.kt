@@ -26,6 +26,12 @@ data class AzphaltManifest(
     val author: String? = null,
     val description: String? = null,
     val homepage: String? = null,
+    /**
+     * Developer content-maturity self-attestation (spec/extension-manifest.md § maturity): [Maturity.GENERAL]
+     * (the default when absent) or [Maturity.MATURE] (18+). A store surfaces it and puts a `mature` listing
+     * behind an age-confirmation gate before revealing its card.
+     */
+    val maturity: Maturity = Maturity.GENERAL,
     /** Apps this extension targets (spec/extension-manifest.md), by host app id. Empty = universal. */
     val targetApps: List<String> = emptyList(),
     val entry: String? = null,
@@ -140,6 +146,33 @@ data class Preview(
     val clip: String? = null,
 )
 
+/**
+ * A package's content-maturity self-attestation (spec/extension-manifest.md § maturity). Like the other
+ * manifest enums this maps a value newer than this build (or a malformed one) to its documented default,
+ * [GENERAL] — the same fallback the spec assigns to an absent field — so an odd value never breaks the
+ * parse. A store applies the age gate on [MATURE].
+ */
+@Serializable(with = Maturity.Serializer::class)
+enum class Maturity(val wire: String) {
+    GENERAL("general"),
+    MATURE("mature");
+
+    internal object Serializer : kotlinx.serialization.KSerializer<Maturity> {
+        override val descriptor = kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "com.hereliesaz.graffitixr.common.azphalt.Maturity",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+        override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: Maturity) =
+            encoder.encodeString(value.wire)
+
+        override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): Maturity {
+            val raw = decoder.decodeString()
+            return entries.firstOrNull { it.wire == raw } ?: GENERAL
+        }
+    }
+}
+
 @Serializable
 enum class Runtime {
     @SerialName("js") JS,
@@ -229,17 +262,23 @@ enum class AssetType(val wire: String) {
     OVERLAY("overlay"),
 
     // AI model assets. Paired with AssetContribution.role (e.g. "depth", "segmentation") so a host
-    // routes the model graph to the right on-device engine.
+    // routes the model graph to the right on-device engine. MODEL/TASK/VOSK_BUNDLE are multi-file
+    // bundles like SHERPA_BUNDLE (spec/extension-manifest.md § "AI Models").
     TFLITE("tflite"),
     LITERT("litert"),
     ONNX("onnx"),
     SHERPA_BUNDLE("sherpa-bundle"),
+    MODEL("model"),
+    TASK("task"),
+    VOSK_BUNDLE("vosk-bundle"),
 
     /** A type this host build does not recognise; the contribution is retained but not applied. */
     UNKNOWN("");
 
     /** True for the AI-model asset types (spec/extension-manifest.md "AI Models"). */
-    val isModel: Boolean get() = this == TFLITE || this == LITERT || this == ONNX || this == SHERPA_BUNDLE;
+    val isModel: Boolean
+        get() = this == TFLITE || this == LITERT || this == ONNX || this == SHERPA_BUNDLE ||
+            this == MODEL || this == TASK || this == VOSK_BUNDLE;
 
     internal object Serializer : kotlinx.serialization.KSerializer<AssetType> {
         override val descriptor = kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
@@ -297,6 +336,44 @@ data class AssetContribution(
     val standalone: Boolean = true,
     /** Optional marketplace-filter tags for this asset (e.g. `["sfx", "impact"]`). */
     val tags: List<String> = emptyList(),
+    /**
+     * Optional machine-checkable usage terms (spec § assets `contentRights`) a host surfaces on the
+     * marketplace card and a registry can filter on — attribution string, whether it's required, and a
+     * commercial-use summary flag.
+     */
+    val contentRights: ContentRights? = null,
+    /**
+     * Optional real-world scale metadata (spec § assets `physical`), chiefly for a printable/tiling
+     * asset (a paper texture, a stamp) so a host can place it at its intended physical size and DPI.
+     */
+    val physical: PhysicalSize? = null,
+)
+
+/**
+ * Machine-checkable usage terms for an asset (spec/extension-manifest.md § assets `contentRights`).
+ * All optional: [attribution] is the exact credit string to display, [attributionRequired] whether the
+ * license mandates showing it, and [commercialUse] a summary flag for "commercial-OK" filtering/badging.
+ */
+@Serializable
+data class ContentRights(
+    val attribution: String? = null,
+    val attributionRequired: Boolean? = null,
+    val commercialUse: Boolean? = null,
+)
+
+/**
+ * Real-world scale metadata for an asset (spec/extension-manifest.md § assets `physical`). [unit] is
+ * REQUIRED by the spec whenever any dimension is present (`mm`|`cm`|`in`); [dpi] aids print reproduction
+ * and [tileWidth]/[tileHeight] give the tile size for an asset meant to repeat across sheets.
+ */
+@Serializable
+data class PhysicalSize(
+    val width: Float? = null,
+    val height: Float? = null,
+    val unit: String? = null,
+    val dpi: Float? = null,
+    val tileWidth: Float? = null,
+    val tileHeight: Float? = null,
 )
 
 /** Shared lenient JSON — tolerates unknown/future manifest fields rather than failing to parse. */
