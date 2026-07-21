@@ -52,4 +52,66 @@ class BrushStampsTest {
         assertEquals(7f, BrushStamps.length(listOf(0f, 0f, 3f, 0f, 3f, 4f)), 1e-4f)
         assertEquals(0f, BrushStamps.length(listOf(2f, 2f)), 0f)
     }
+
+    // ---- Dab expansion (brush → concrete stamps) ----
+
+    private val hardRound = AzphaltBrush(name = "Round", spacing = 0.25f)
+
+    @Test
+    fun noJitterBrushYieldsSolidDabsOnEachCentre() {
+        // spacing 0.25 × diameter 8 = step 2 → centres at x = 0,2,4 along a length-4 line.
+        val dabs = BrushStamps.dabs(listOf(0f, 0f, 4f, 0f), diameterPx = 8f, brush = hardRound, seed = 1L)
+        assertEquals(3, dabs.size)
+        assertEquals(listOf(0f, 2f, 4f), dabs.map { it.x })
+        dabs.forEach { d ->
+            assertEquals(0f, d.y, 1e-4f)
+            assertEquals(4f, d.radius, 1e-4f)   // diameter/2, no size jitter
+            assertEquals(1f, d.alpha, 1e-4f)    // full opacity, no opacity jitter
+        }
+    }
+
+    @Test
+    fun sameSeedIsDeterministicAndDifferentSeedDiffers() {
+        val jitter = hardRound.copy(sizeJitter = 0.5f, opacityJitter = 0.5f, scatter = 1f)
+        val a = BrushStamps.dabs(listOf(0f, 0f, 10f, 0f), 8f, jitter, seed = 42L)
+        val b = BrushStamps.dabs(listOf(0f, 0f, 10f, 0f), 8f, jitter, seed = 42L)
+        val c = BrushStamps.dabs(listOf(0f, 0f, 10f, 0f), 8f, jitter, seed = 43L)
+        assertEquals(a, b)                       // replay identically
+        assertTrue(a != c)                       // a different seed shifts the jitter
+    }
+
+    @Test
+    fun sizeJitterOnlyShrinksAndStaysInBounds() {
+        val jitter = hardRound.copy(sizeJitter = 0.5f)
+        val dabs = BrushStamps.dabs(listOf(0f, 0f, 20f, 0f), 8f, jitter, seed = 7L)
+        // radius ∈ [ (diameter/2)*(1-0.5), diameter/2 ] = [2, 4]
+        dabs.forEach { d -> assertTrue(d.radius in 2f..4f) }
+        assertTrue(dabs.any { it.radius < 4f })  // at least one actually jittered
+    }
+
+    @Test
+    fun followStrokeRotatesDabsToTheHeading() {
+        // A straight vertical stroke heads at +90°; followStroke should set every dab's angle to it.
+        val brush = hardRound.copy(followStroke = true)
+        val dabs = BrushStamps.dabs(listOf(0f, 0f, 0f, 10f), 8f, brush, seed = 1L)
+        dabs.forEach { d -> assertEquals(90f, d.angleDeg, 1e-3f) }
+        // Without followStroke the angle is just the brush's base angle.
+        val fixed = BrushStamps.dabs(listOf(0f, 0f, 0f, 10f), 8f, hardRound.copy(angle = 15f), seed = 1L)
+        fixed.forEach { d -> assertEquals(15f, d.angleDeg, 1e-3f) }
+    }
+
+    @Test
+    fun scatterDisplacesPerpendicularToTravel() {
+        // Horizontal stroke → scatter must move dabs only in Y (perpendicular), never off the X centres.
+        val brush = hardRound.copy(scatter = 2f)
+        val dabs = BrushStamps.dabs(listOf(0f, 0f, 20f, 0f), 8f, brush, seed = 5L)
+        assertTrue(dabs.any { kotlin.math.abs(it.y) > 0.01f })   // actually scattered
+        // |offset| ≤ scatter·diameter = 16
+        dabs.forEach { d -> assertTrue(kotlin.math.abs(d.y) <= 16f + 1e-3f) }
+    }
+
+    @Test
+    fun emptyStrokeYieldsNoDabs() {
+        assertTrue(BrushStamps.dabs(emptyList(), 8f, hardRound, seed = 1L).isEmpty())
+    }
 }

@@ -1,6 +1,27 @@
 package com.hereliesaz.graffitixr.common.azphalt
 
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
+import kotlin.random.Random
+
+private const val RAD_TO_DEG = 180.0 / PI
+private const val DEG_TO_RAD = PI / 180.0
+
+/**
+ * A single concrete stamp instance the renderer draws: its centre ([x],[y] in the stroke's units), its
+ * [radius] in the same units, per-dab [alpha] (`0..1`, already folding in the brush opacity), and the
+ * [angleDeg] the stamp is rotated to. A round tip ignores [angleDeg]; a shaped stamp honours it.
+ */
+data class Dab(
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+    val alpha: Float,
+    val angleDeg: Float,
+)
 
 /**
  * The stamp-spacing core of a raster brush: turns a recorded stroke poly-line into the ordered list of
@@ -50,6 +71,65 @@ object BrushStamps {
             travelled += segLen
         }
         return out
+    }
+
+    /**
+     * Expand a stroke into the concrete [Dab] instances a renderer draws with [brush] at the given tip
+     * [diameterPx]. Dab centres come from [place] (spacing = `brush.spacing * diameterPx`); each dab then
+     * gets its size/opacity jittered, is scattered perpendicular to the local stroke heading, and — when
+     * [AzphaltBrush.followStroke] is set — rotated to that heading (plus the brush's base [AzphaltBrush.angle]).
+     *
+     * Jitter is drawn from a [seed]ed [Random] so the same stroke replays identically (a committed stroke
+     * must re-composite to the same pixels): pass a stable per-stroke seed, not a clock. A brush with no
+     * jitter/scatter yields one solid dab per centre at `radius = diameterPx/2`, `alpha = brush.opacity`.
+     */
+    fun dabs(points: List<Float>, diameterPx: Float, brush: AzphaltBrush, seed: Long): List<Dab> {
+        val diameter = diameterPx.coerceAtLeast(0f)
+        // A zero-width tip paints nothing; bail before place()'s tiny-step guard spawns a huge dab count.
+        if (diameter <= 0f) return emptyList()
+        val baseRadius = diameter / 2f
+        val centres = place(points, brush.spacing * diameter)
+        val count = centres.size / 2
+        if (count == 0) return emptyList()
+
+        val rng = Random(seed)
+        val out = ArrayList<Dab>(count)
+        for (i in 0 until count) {
+            val cx = centres[2 * i]; val cy = centres[2 * i + 1]
+            // Local heading from adjacent centres (forward for the first dab, backward otherwise), so a
+            // scatter offset is perpendicular to travel and followStroke tracks the stroke direction.
+            val headingDeg = headingAt(centres, i, count)
+
+            // Draw every random the same way each dab, in the same order, so removing one dynamic never
+            // shifts another's stream — determinism holds regardless of which brush params are active.
+            val sizeR = rng.nextFloat()
+            val opacR = rng.nextFloat()
+            val scatR = rng.nextFloat()
+
+            val radius = baseRadius * (1f - brush.sizeJitter * sizeR)
+            val alpha = (brush.opacity * (1f - brush.opacityJitter * opacR)).coerceIn(0f, 1f)
+
+            var x = cx; var y = cy
+            if (brush.scatter > 0f && diameter > 0f) {
+                val mag = brush.scatter * diameter * (scatR * 2f - 1f)   // ±scatter·diameter
+                val perpRad = (headingDeg + 90f) * DEG_TO_RAD
+                x += (mag * cos(perpRad)).toFloat()
+                y += (mag * sin(perpRad)).toFloat()
+            }
+            val angle = brush.angle + if (brush.followStroke) headingDeg else 0f
+            out.add(Dab(x, y, radius, alpha, angle))
+        }
+        return out
+    }
+
+    /** Stroke heading in degrees at dab [i] of [count], read from neighbouring centres; 0 if undefined. */
+    private fun headingAt(centres: List<Float>, i: Int, count: Int): Float {
+        if (count < 2) return 0f
+        val (a, b) = if (i == 0) 0 to 1 else (i - 1) to i
+        val dx = centres[2 * b] - centres[2 * a]
+        val dy = centres[2 * b + 1] - centres[2 * a + 1]
+        if (dx == 0f && dy == 0f) return 0f
+        return (atan2(dy.toDouble(), dx.toDouble()) * RAD_TO_DEG).toFloat()
     }
 
     /** Total arc length of a poly-line — the stroke length a caller divides by [stepPx] for a dab count. */
