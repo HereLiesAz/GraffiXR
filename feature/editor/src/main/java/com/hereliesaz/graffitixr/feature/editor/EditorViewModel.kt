@@ -9,7 +9,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.widget.Toast
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -516,6 +518,17 @@ class EditorViewModel @Inject constructor(
                 importLayeredDocument(doc)
                 return@launch
             }
+            // PDF and modern Illustrator .ai (PDF-compatible) flatten to a bitmap via PdfRenderer.
+            if (format == DocumentFormat.PDF) {
+                val page = renderPdfFirstPage(bytes)
+                if (page != null) {
+                    importSingleBitmap(page, name?.substringBeforeLast('.') ?: "Imported")
+                } else {
+                    withContext(dispatchers.main) { toast("Couldn't render that PDF/Illustrator file.") }
+                }
+                return@launch
+            }
+
             withContext(dispatchers.main) {
                 when (format) {
                     DocumentFormat.IMAGE -> onAddLayer(uri)
@@ -523,11 +536,73 @@ class EditorViewModel @Inject constructor(
                         toast("This PSD uses a mode that isn't supported yet (only 8-bit RGB).")
                     DocumentFormat.CANVA ->
                         toast("Canva files aren't stored locally — export to PNG or PDF and open that.")
-                    DocumentFormat.PDF, DocumentFormat.PROCREATE ->
-                        toast("Opening ${format.name.lowercase()} files is coming soon.")
+                    DocumentFormat.PROCREATE ->
+                        toast("Opening Procreate files is coming soon.")
                     else -> toast("That file type isn't supported.")
                 }
             }
+        }
+    }
+
+    /**
+     * Renders the first page of a PDF (or PDF-compatible Illustrator `.ai`) held in [bytes] to a
+     * bitmap, longest side capped at 2048px, on a white background (PDF pages assume white paper).
+     * Returns null if the bytes aren't a renderable PDF. Runs off the main thread.
+     */
+    private fun renderPdfFirstPage(bytes: ByteArray): Bitmap? {
+        val tmp = File(context.cacheDir, "import_${UUID.randomUUID()}.pdf")
+        return try {
+            tmp.writeBytes(bytes)
+            ParcelFileDescriptor.open(tmp, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                PdfRenderer(pfd).use { renderer ->
+                    if (renderer.pageCount <= 0) return null
+                    renderer.openPage(0).use { page ->
+                        val longest = maxOf(page.width, page.height).coerceAtLeast(1)
+                        // Render at ~150dpi but never exceed the 2048px cap.
+                        val renderScale = minOf(150f / 72f, 2048f / longest)
+                        val w = (page.width * renderScale).toInt().coerceAtLeast(1)
+                        val h = (page.height * renderScale).toInt().coerceAtLeast(1)
+                        val bmp = createBitmap(w, h)
+                        bmp.eraseColor(android.graphics.Color.WHITE)
+                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        bmp
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            null
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /** Adds [bitmap] as a single new layer, scaled to fit the screen — the flattened-import path
+     *  shared by PDF/Illustrator (and any future single-image decoder). */
+    private suspend fun importSingleBitmap(bitmap: Bitmap, name: String) {
+        val projectId = _uiState.value.projectId ?: return
+        val metrics = context.resources.displayMetrics
+        val initialScale = minOf(
+            metrics.widthPixels * 0.9f / bitmap.width.coerceAtLeast(1),
+            metrics.heightPixels * 0.9f / bitmap.height.coerceAtLeast(1),
+            1f,
+        )
+        val filename = "layer_${UUID.randomUUID()}.png"
+        val path = projectRepository.saveArtifact(projectId, filename, ImageUtils.bitmapToByteArray(bitmap))
+        val layer = Layer(
+            id = UUID.randomUUID().toString(),
+            name = name.ifBlank { "Imported" },
+            uri = "file://$path".toUri(),
+            bitmap = bitmap,
+            isVisible = true,
+            scale = initialScale,
+        )
+        layerStore.putBase(layer.id, bitmap.copy(Bitmap.Config.ARGB_8888, false))
+        layerStore.initStrokes(layer.id)
+        withContext(dispatchers.main) {
+            pushHistory()
+            dispatch(EditorIntent.AddLayer(layer))
+            opEmitter.emit(Op.LayerAdd(layer))
+            saveProject()
         }
     }
 
